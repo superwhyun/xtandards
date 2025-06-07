@@ -8,7 +8,9 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
-import { FileText, Calendar, Users, Plus } from "lucide-react"
+import { FileText, Calendar, Users, Plus, Settings, LogOut } from "lucide-react"
+import LoginScreen, { UserRole, AuthState } from "@/components/auth/LoginScreen"
+import SettingsDialog from "@/components/auth/SettingsDialog"
 
 interface Standard {
   acronym: string
@@ -106,10 +108,64 @@ function NewStandardDialog({
 
 export default function HomePage() {
   const [standards, setStandards] = useState<Standard[]>([])
+  const [auth, setAuth] = useState<AuthState>({
+    isAuthenticated: false,
+    role: null,
+    user: null
+  })
+  const [settingsOpen, setSettingsOpen] = useState(false)
+
+  const handleLogin = (role: UserRole, password: string): boolean => {
+    const chairPassword = localStorage.getItem('chairPassword') || 'chair'
+    const contributorPassword = localStorage.getItem('contributorPassword') || 'cont'
+    
+    const isValid = (role === 'chair' && password === chairPassword) || 
+                   (role === 'contributor' && password === contributorPassword)
+    
+    if (isValid) {
+      const authState = {
+        isAuthenticated: true,
+        role,
+        user: role
+      }
+      setAuth(authState)
+      // 인증 정보를 localStorage에 저장
+      localStorage.setItem('authState', JSON.stringify(authState))
+      return true
+    }
+    return false
+  }
+
+  const handleLogout = () => {
+    const authState = {
+      isAuthenticated: false,
+      role: null,
+      user: null
+    }
+    setAuth(authState)
+    // localStorage에서 인증 정보 삭제
+    localStorage.removeItem('authState')
+  }
 
   useEffect(() => {
     setStandards(getStoredStandards())
+    
+    // 저장된 인증 정보 복원
+    const savedAuth = localStorage.getItem('authState')
+    if (savedAuth) {
+      try {
+        const parsedAuth = JSON.parse(savedAuth)
+        setAuth(parsedAuth)
+      } catch (error) {
+        console.error('인증 정보 복원 실패:', error)
+      }
+    }
   }, [])
+
+  // 로그인하지 않은 경우 로그인 화면 표시
+  if (!auth.isAuthenticated) {
+    return <LoginScreen onLogin={handleLogin} />
+  }
 
   const saveStandards = (newStandards: Standard[]) => {
     setStandards(newStandards)
@@ -171,18 +227,50 @@ export default function HomePage() {
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-gray-100">
       <div className="container mx-auto p-6">
         <div className="mb-8 bg-white rounded-2xl p-6 shadow-lg border border-gray-200">
-          <h1 className="text-4xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent mb-2">
-            표준문서 관리 시스템
-          </h1>
-          <p className="text-gray-600 text-lg">드래그 앤 드롭으로 표준문서 개발 과정을 관리하세요</p>
+          <div className="flex justify-between items-start">
+            <div>
+              <h1 className="text-4xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent mb-2">
+                표준문서 관리 시스템
+              </h1>
+              <p className="text-gray-600 text-lg">드래그 앤 드롭으로 표준문서 개발 과정을 관리하세요</p>
+            </div>
+            <div className="flex items-center gap-3">
+              <div className="text-sm text-gray-600">
+                <span className={`font-medium ${auth.role === 'chair' ? 'text-blue-600' : 'text-green-600'}`}>
+                  {auth.role === 'chair' ? 'Chair' : 'Contributor'}
+                </span>
+                로 로그인됨
+              </div>
+              {auth.role === 'chair' && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setSettingsOpen(true)}
+                  className="gap-2"
+                >
+                  <Settings className="h-4 w-4" />
+                  설정
+                </Button>
+              )}
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleLogout}
+                className="gap-2"
+              >
+                <LogOut className="h-4 w-4" />
+                로그아웃
+              </Button>
+            </div>
+          </div>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          <NewStandardDialog onCreateStandard={handleCreateStandard} />
+          {auth.role === 'chair' && <NewStandardDialog onCreateStandard={handleCreateStandard} />}
           
           {standards.map((standard) => (
             <Link key={standard.acronym} href={`/${standard.acronym}`}>
-              <Card className="hover:shadow-lg transition-all duration-300 hover:scale-105 bg-gradient-to-br from-white to-gray-50 border-0 shadow-md cursor-pointer">
+              <Card className="hover:shadow-lg transition-all duration-300 hover:scale-105 bg-gradient-to-br from-white to-gray-50 border-0 shadow-md cursor-pointer h-48">
                 <CardHeader className="pb-2">
                   <CardTitle className="flex items-center gap-2">
                     <FileText className="h-5 w-5 text-blue-600" />
@@ -207,6 +295,10 @@ export default function HomePage() {
           ))}
         </div>
       </div>
+
+      {auth.role === 'chair' && (
+        <SettingsDialog isOpen={settingsOpen} onOpenChange={setSettingsOpen} />
+      )}
     </div>
   )
 }

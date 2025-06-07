@@ -12,14 +12,17 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
-import { FileText, Upload, CheckCircle, ArrowRight, Plus, Calendar, Download, Home } from "lucide-react"
+import { FileText, Upload, CheckCircle, ArrowRight, Plus, Calendar, Download, Home, LogOut, Settings, Edit, Trash2 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import DropZone from "@/components/DropZone"
 import DocumentCard from "@/components/DocumentCard"
 import ConnectionLine from "@/components/ConnectionLine"
 import StatusSelector from "@/components/StatusSelector"
 import NewMeetingDialog from "@/components/NewMeetingDialog"
+import EditMeetingDialog from "@/components/EditMeetingDialog"
 import MeetingTab from "@/components/MeetingTab"
+import LoginScreen, { UserRole, AuthState } from "@/components/auth/LoginScreen"
+import SettingsDialog from "@/components/auth/SettingsDialog"
 
 interface Document {
   id: string
@@ -109,12 +112,65 @@ function AcronymPage() {
   const params = useParams()
   const acronym = params.acronym as string
   
+  // 인증 상태 관리
+  const [auth, setAuth] = useState<AuthState>({
+    isAuthenticated: false,
+    role: null,
+    user: null
+  })
+  const [settingsOpen, setSettingsOpen] = useState(false)
+  const [editMeetingOpen, setEditMeetingOpen] = useState(false)
+  const [editingMeeting, setEditingMeeting] = useState<Meeting | null>(null)
+  
   // 상태 및 핸들러 함수 복구
   const [standard, setStandard] = useState<Standard | null>(null)
   const [activeMeetingId, setActiveMeetingId] = useState<string>("")
   const [expandedMemos, setExpandedMemos] = useState<{ [key: string]: boolean }>({}) // 메모 확장 상태
 
+  const handleLogin = (role: UserRole, password: string): boolean => {
+    const chairPassword = localStorage.getItem('chairPassword') || 'chair'
+    const contributorPassword = localStorage.getItem('contributorPassword') || 'cont'
+    
+    const isValid = (role === 'chair' && password === chairPassword) || 
+                   (role === 'contributor' && password === contributorPassword)
+    
+    if (isValid) {
+      const authState = {
+        isAuthenticated: true,
+        role,
+        user: role
+      }
+      setAuth(authState)
+      // 인증 정보를 localStorage에 저장
+      localStorage.setItem('authState', JSON.stringify(authState))
+      return true
+    }
+    return false
+  }
+
+  const handleLogout = () => {
+    const authState = {
+      isAuthenticated: false,
+      role: null,
+      user: null
+    }
+    setAuth(authState)
+    // localStorage에서 인증 정보 삭제
+    localStorage.removeItem('authState')
+  }
+
   useEffect(() => {
+    // 저장된 인증 정보 복원
+    const savedAuth = localStorage.getItem('authState')
+    if (savedAuth) {
+      try {
+        const parsedAuth = JSON.parse(savedAuth)
+        setAuth(parsedAuth)
+      } catch (error) {
+        console.error('인증 정보 복원 실패:', error)
+      }
+    }
+
     if (acronym) {
       const standardData = getStandardData(acronym)
       if (standardData) {
@@ -196,6 +252,29 @@ function AcronymPage() {
   const updateStandard = (updatedStandard: Standard) => {
     setStandard(updatedStandard)
     saveStandardData(updatedStandard)
+  }
+
+  // 회의 수정 핸들러
+  const handleEditMeeting = (meeting: Meeting) => {
+    setEditingMeeting(meeting)
+    setEditMeetingOpen(true)
+  }
+
+  const handleSaveMeeting = (meetingId: string, updatedData: { title: string; date: string; description?: string }) => {
+    if (!standard) return
+
+    const updatedMeetings = standard.meetings.map(meeting =>
+      meeting.id === meetingId
+        ? { ...meeting, ...updatedData }
+        : meeting
+    )
+
+    const updatedStandard = {
+      ...standard,
+      meetings: updatedMeetings
+    }
+
+    updateStandard(updatedStandard)
   }
 
   // 파일 업로드 핸들러
@@ -579,6 +658,11 @@ function AcronymPage() {
     setActiveMeetingId(newMeeting.id)
   }, [standard])
 
+  // 로그인하지 않은 경우 로그인 화면 표시
+  if (!auth.isAuthenticated) {
+    return <LoginScreen onLogin={handleLogin} />
+  }
+
   if (!standard) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-50 to-gray-100 flex items-center justify-center">
@@ -699,6 +783,7 @@ function MemoSection({
 function MeetingTab({
   meeting,
   acronym,
+  userRole,
   onFileUpload,
   onComplete,
   onStatusChange,
@@ -709,6 +794,7 @@ function MeetingTab({
 }: {
   meeting: Meeting
   acronym: string
+  userRole: UserRole
   onFileUpload: (files: FileList, type: string, proposalId?: string) => void
   onComplete: () => void
   onStatusChange: (proposalId: string, status: "accepted" | "review" | "rejected") => void
@@ -782,7 +868,7 @@ function MeetingTab({
                     </div>
                   </CardContent>
                 </Card>
-                {!meeting.isCompleted && (
+                {!meeting.isCompleted && userRole === 'chair' && (
                   <div className="flex justify-center xl:block">
                     <DropZone onDrop={(files) => onFileUpload(files, "base")} className="w-48">
                       <div className="text-center">
@@ -846,8 +932,8 @@ function MeetingTab({
                     </div>
                   )}
 
-                  {/* 상태선택 (오른쪽 끝) */}
-                  {!meeting.isCompleted && (
+                  {/* 상태선택 (오른쪽 끝) - Chair만 접근 가능 */}
+                  {!meeting.isCompleted && userRole === 'chair' && (
                     <div className="flex-shrink-0 ml-4">
                       <StatusSelector
                         currentStatus={proposal.status}
@@ -921,7 +1007,7 @@ function MeetingTab({
                       )
                     })}
 
-                    {!meeting.isCompleted && (
+                    {!meeting.isCompleted && userRole === 'chair' && (
                       <>
                         <ConnectionLine />
                         <DropZone onDrop={(files) => onFileUpload(files, "result-revision")} />
@@ -930,7 +1016,7 @@ function MeetingTab({
                   </div>
                 </div>
               ) : (
-                !meeting.isCompleted && (
+                !meeting.isCompleted && userRole === 'chair' && (
                   <div className="bg-gradient-to-br from-green-50 to-emerald-50 rounded-2xl p-6 border-2 border-dashed border-green-200">
                     <div className="flex justify-center">
                       <DropZone onDrop={(files) => onFileUpload(files, "result")} className="mx-auto">
@@ -982,7 +1068,7 @@ function MeetingTab({
               })()}
             </div>
 
-            {meeting.resultDocument && (
+            {meeting.resultDocument && userRole === 'chair' && (
               <div className="mt-6">
                 <Button
                   onClick={onComplete}
@@ -1028,12 +1114,27 @@ function MeetingTab({
               </h1>
               <p className="text-gray-600 text-sm mt-1">{standard.title}</p>
             </div>
-            <Link href="/">
-              <Button variant="outline" size="sm" className="flex items-center gap-2">
-                <Home className="h-4 w-4" />
-                홈
+            <div className="flex items-center gap-2">
+              <div className="text-xs text-gray-600">
+                <span className={`font-medium ${auth.role === 'chair' ? 'text-blue-600' : 'text-green-600'}`}>
+                  {auth.role === 'chair' ? 'Chair' : 'Contributor'}
+                </span>
+              </div>
+              <Link href="/">
+                <Button variant="outline" size="sm" className="flex items-center gap-2">
+                  <Home className="h-4 w-4" />
+                  홈
+                </Button>
+              </Link>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleLogout}
+                className="flex items-center gap-2"
+              >
+                <LogOut className="h-4 w-4" />
               </Button>
-            </Link>
+            </div>
           </div>
         </div>
 
@@ -1041,12 +1142,36 @@ function MeetingTab({
         <div className="w-full lg:w-64 bg-white border-r border-gray-200 min-h-screen">
           <div className="p-4">
             {/* 홈으로 버튼 */}
-            <Link href="/" className="block mb-4">
-              <Button variant="outline" size="sm" className="w-full flex items-center gap-2">
-                <Home className="h-4 w-4" />
-                홈으로
-              </Button>
-            </Link>
+            <div className="flex flex-col gap-2 mb-4">
+              <Link href="/" className="block">
+                <Button variant="outline" size="sm" className="w-full flex items-center gap-2">
+                  <Home className="h-4 w-4" />
+                  홈으로
+                </Button>
+              </Link>
+              <div className="flex gap-2">
+                {auth.role === 'chair' && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setSettingsOpen(true)}
+                    className="flex-1 flex items-center gap-2"
+                  >
+                    <Settings className="h-4 w-4" />
+                    설정
+                  </Button>
+                )}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleLogout}
+                  className="flex-1 flex items-center gap-2"
+                >
+                  <LogOut className="h-4 w-4" />
+                  로그아웃
+                </Button>
+              </div>
+            </div>
 
             {/* 데스크톱 헤더 */}
             <div className="hidden lg:block mb-6">
@@ -1054,6 +1179,12 @@ function MeetingTab({
                 {standard.acronym}
               </h1>
               <p className="text-gray-600 text-sm mt-1">{standard.title}</p>
+              <div className="text-xs text-gray-600 mt-2">
+                <span className={`font-medium ${auth.role === 'chair' ? 'text-blue-600' : 'text-green-600'}`}>
+                  {auth.role === 'chair' ? 'Chair' : 'Contributor'}
+                </span>
+                로 로그인됨
+              </div>
             </div>
 
             {/* 회의 탭들 */}
@@ -1086,23 +1217,35 @@ function MeetingTab({
                     </div>
                   </button>
                   
-                  {/* 회의 삭제 버튼 - 완료되지 않은 회의만 */}
-                  {!meeting.isCompleted && (
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleDeleteMeeting(meeting.id);
-                      }}
-                      className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200 bg-red-500 hover:bg-red-600 text-white rounded-full p-1 text-xs"
-                      title="회의 삭제"
-                    >
-                      ✕
-                    </button>
+                  {/* 회의 수정/삭제 버튼 - Chair만 접근 가능 */}
+                  {auth.role === 'chair' && !meeting.isCompleted && (
+                    <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex gap-1">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleEditMeeting(meeting);
+                        }}
+                        className="bg-blue-500 hover:bg-blue-600 text-white rounded-full p-1 text-xs"
+                        title="회의 수정"
+                      >
+                        <Edit className="h-3 w-3" />
+                      </button>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDeleteMeeting(meeting.id);
+                        }}
+                        className="bg-red-500 hover:bg-red-600 text-white rounded-full p-1 text-xs"
+                        title="회의 삭제"
+                      >
+                        <Trash2 className="h-3 w-3" />
+                      </button>
+                    </div>
                   )}
                 </div>
               ))}
 
-              <NewMeetingDialog onCreateMeeting={handleCreateMeeting} />
+              {auth.role === 'chair' && <NewMeetingDialog onCreateMeeting={handleCreateMeeting} />}
             </div>
           </div>
         </div>
@@ -1124,6 +1267,7 @@ function MeetingTab({
                   key={meeting.id}
                   meeting={meeting}
                   acronym={standard.acronym}
+                  userRole={auth.role!}
                   onFileUpload={(files, type, proposalId) => handleFileUpload(files, meeting.id, type, proposalId)}
                   onComplete={() => handleMeetingToggle(meeting.id)}
                   onStatusChange={(proposalId, status) => handleStatusChange(meeting.id, proposalId, status)}
@@ -1136,6 +1280,19 @@ function MeetingTab({
           )}
         </div>
       </div>
+
+      {auth.role === 'chair' && (
+        <SettingsDialog isOpen={settingsOpen} onOpenChange={setSettingsOpen} />
+      )}
+
+      {auth.role === 'chair' && (
+        <EditMeetingDialog 
+          meeting={editingMeeting}
+          isOpen={editMeetingOpen}
+          onOpenChange={setEditMeetingOpen}
+          onSave={handleSaveMeeting}
+        />
+      )}
     </div>
   )
 }
