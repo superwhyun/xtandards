@@ -24,29 +24,7 @@ import MeetingTab from "@/components/MeetingTab"
 import LoginScreen, { UserRole, AuthState } from "@/components/auth/LoginScreen"
 import SettingsDialog from "@/components/auth/SettingsDialog"
 
-interface Document {
-  id: string
-  name: string
-  type: "previous" | "proposal" | "revision" | "result"
-  uploadDate: string
-  connections: string[]
-  status?: "accepted" | "review" | "rejected" | "pending"
-  filePath?: string
-}
-
-interface Meeting {
-  id: string
-  date: string
-  title: string
-  description?: string
-  previousDocument?: Document
-  proposals: Document[]
-  revisions: { [proposalId: string]: Document[] }
-  resultDocument?: Document
-  resultRevisions: Document[]
-  isCompleted: boolean
-  memos: { [proposalId: string]: string } // 기고서별 메모 추가
-}
+import { Document, Meeting } from "@/types/standard"
 
 interface Standard {
   acronym: string
@@ -68,44 +46,7 @@ const loadMemosFromServer = async (acronym: string, meetingDate: string): Promis
   return {}
 }
 
-// 표준문서 데이터 로드 함수
-const getStandardData = (acronym: string): Standard | null => {
-  if (typeof window === 'undefined') return null
-  
-  const stored = localStorage.getItem('standards')
-  const standards = stored ? JSON.parse(stored) : []
-  const foundStandard = standards.find((s: any) => s.acronym === acronym)
-  
-  if (foundStandard) {
-    // 회의 데이터가 없으면 빈 배열로 초기화, memos 필드도 확인
-    return {
-      ...foundStandard,
-      meetings: (foundStandard.meetings || []).map((meeting: any) => ({
-        ...meeting,
-        memos: meeting.memos || {} // memos 필드가 없으면 빈 객체로 초기화
-      }))
-    }
-  }
-  
-  return null
-}
-
-// 표준문서 데이터 저장 함수
-const saveStandardData = (standard: Standard) => {
-  if (typeof window === 'undefined') return
-  
-  const stored = localStorage.getItem('standards')
-  const standards = stored ? JSON.parse(stored) : []
-  const index = standards.findIndex((s: any) => s.acronym === standard.acronym)
-  
-  if (index >= 0) {
-    standards[index] = standard
-  } else {
-    standards.push(standard)
-  }
-  
-  localStorage.setItem('standards', JSON.stringify(standards))
-}
+import { getStandardData, saveStandardData } from "@/lib/standardData"
 
 // 페이지 컴포넌트 정의
 function AcronymPage() {

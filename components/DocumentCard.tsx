@@ -5,19 +5,12 @@ import { Badge } from "@/components/ui/badge";
 import { Download, Trash2, FileText } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-interface Document {
-  id: string;
-  name: string;
-  type: "previous" | "proposal" | "revision" | "result";
-  uploadDate: string;
-  connections: string[];
-  status?: "accepted" | "review" | "rejected" | "pending";
-  filePath?: string;
-}
+import { Document } from "@/types/standard"
 
 interface DocumentCardProps {
   document: Document;
   showConnections?: boolean;
+  variant?: "default" | "small";
   onDownload?: () => void;
   onDelete?: () => void;
   onMemoClick?: () => void;
@@ -68,74 +61,82 @@ export default function DocumentCard({
   return (
     <Card
       className={cn(
-        "w-48 transition-all duration-300 hover:shadow-lg hover:scale-105 border-2 border-gray-300 shadow-md",
+        "w-48 transition-all duration-300 hover:shadow-lg hover:scale-105 border-2 border-gray-300 shadow-md flex flex-col",
         baseHeight,
         document.status === "rejected" && "opacity-60",
         isLatest ? "bg-yellow-50 border-yellow-300" : "bg-white" // 최종 수정본 배경색 구분
       )}
     >
-      <CardHeader className="pb-2 px-3 pt-3">
-        <div className="flex items-start gap-2">
-          <div className="flex-1 min-w-0 overflow-hidden">
+      <CardHeader className="pb-1 px-3 pt-3 flex-1">
+        <div className="flex flex-col h-full">
+          {/* 파일명 - 최대한 공간 활용 */}
+          <div className="flex-1 min-h-0">
             <CardTitle
-              className="font-semibold leading-tight text-sm" // 한 줄로 표시하되 공간 내에서 최대한 표시
+              className="font-semibold leading-tight text-sm mb-2" 
               title={document.name}
               style={{
                 display: '-webkit-box',
-                WebkitLineClamp: 2,
+                WebkitLineClamp: 3, // 3줄까지 표시
                 WebkitBoxOrient: 'vertical',
                 overflow: 'hidden',
-                wordBreak: 'break-all'
+                wordBreak: 'break-all',
+                lineHeight: '1.3'
               }}
             >
               {document.name}
             </CardTitle>
           </div>
-        </div>
-        
-        {/* 버튼들 */}
-        <div className="flex gap-1 mt-2">
-          {onDownload && (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={onDownload}
-              className="h-6 w-6 p-0 hover:bg-blue-100"
-            >
-              <Download className="h-3 w-3" />
-            </Button>
-          )}
-          {onMemoClick && (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={onMemoClick}
-              className="h-6 w-6 p-0 hover:bg-yellow-100"
-            >
-              <FileText className="h-3 w-3" />
-            </Button>
-          )}
-          {onDelete && (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={onDelete}
-              disabled={!canDelete}
-              className={cn(
-                "h-6 w-6 p-0",
-                canDelete ? "hover:bg-red-100" : "opacity-50 cursor-not-allowed"
+          
+          {/* 버튼들과 날짜를 하단에 고정 */}
+          <div className="mt-auto">
+            {/* 버튼들 */}
+            <div className="flex gap-1 mb-2">
+              {onDownload && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={onDownload}
+                  className="h-6 w-6 p-0 hover:bg-blue-100"
+                  title="다운로드"
+                >
+                  <Download className="h-3 w-3" />
+                </Button>
               )}
-            >
-              <Trash2 className="h-3 w-3" />
-            </Button>
-          )}
+              {onMemoClick && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={onMemoClick}
+                  className="h-6 w-6 p-0 hover:bg-yellow-100"
+                  title="메모"
+                >
+                  <FileText className="h-3 w-3" />
+                </Button>
+              )}
+              {onDelete && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={onDelete}
+                  disabled={!canDelete}
+                  className={cn(
+                    "h-6 w-6 p-0",
+                    canDelete ? "hover:bg-red-100" : "opacity-50 cursor-not-allowed"
+                  )}
+                  title="삭제"
+                >
+                  <Trash2 className="h-3 w-3" />
+                </Button>
+              )}
+            </div>
+            
+            {/* 날짜 */}
+            <p className="text-xs text-gray-500">
+              {new Date(document.uploadDate).toLocaleDateString("ko-KR")}
+            </p>
+          </div>
         </div>
       </CardHeader>
-      <CardContent className="px-3 pb-3">
-        <div className="space-y-1">
-          <p className="text-xs text-gray-500">{new Date(document.uploadDate).toLocaleDateString("ko-KR")}</p>
-        </div>
-      </CardContent>
     </Card>
   );
 }
