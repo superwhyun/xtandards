@@ -23,6 +23,8 @@ import EditMeetingDialog from "@/components/EditMeetingDialog"
 import MeetingTab from "@/components/MeetingTab"
 import LoginScreen, { UserRole, AuthState } from "@/components/auth/LoginScreen"
 import SettingsDialog from "@/components/auth/SettingsDialog"
+import { useMeetingHandlers } from "@/hooks/useMeetingHandlers"
+import MemoSection from "@/components/MemoSection"
 
 import { Document, Meeting } from "@/types/standard"
 
@@ -195,110 +197,7 @@ function AcronymPage() {
     saveStandardData(updatedStandard)
   }
 
-  // 회의 수정 핸들러
-  const handleEditMeeting = (meeting: Meeting) => {
-    setEditingMeeting(meeting)
-    setEditMeetingOpen(true)
-  }
-
-  const handleSaveMeeting = (meetingId: string, updatedData: { title: string; date: string; description?: string }) => {
-    if (!standard) return
-
-    const updatedMeetings = standard.meetings.map(meeting =>
-      meeting.id === meetingId
-        ? { ...meeting, ...updatedData }
-        : meeting
-    )
-
-    const updatedStandard = {
-      ...standard,
-      meetings: updatedMeetings
-    }
-
-    updateStandard(updatedStandard)
-  }
-
-  // 파일 업로드 핸들러
-  const handleFileUpload = useCallback(async (files: FileList, meetingId: string, type: string, proposalId?: string) => {
-    if (!standard || files.length === 0) return
-
-    const file = files[0]
-    
-    // 해당 회의 찾기
-    const meeting = standard.meetings.find(m => m.id === meetingId)
-    if (!meeting) return
-
-    const formData = new FormData()
-    formData.append('file', file)
-    formData.append('acronym', standard.acronym)
-    formData.append('meetingDate', meeting.date) // meetingId 대신 meetingDate 사용
-    formData.append('type', type)
-    if (proposalId) {
-      formData.append('proposalId', proposalId)
-    }
-
-    try {
-      const response = await fetch('/api/upload', {
-        method: 'POST',
-        body: formData
-      })
-
-      const result = await response.json()
-
-      if (!response.ok) {
-        alert(`업로드 실패: ${result.error}`)
-        return
-      }
-
-      // 문서 객체 생성
-      const newDocument: Document = {
-        id: `doc-${Date.now()}`,
-        name: result.originalName,
-        type: type as any,
-        uploadDate: new Date().toISOString(),
-        connections: [],
-        status: 'pending',
-        filePath: result.filePath
-      }
-
-      // 상태 업데이트
-      const updatedStandard = { ...standard }
-      const meetingIndex = updatedStandard.meetings.findIndex(m => m.id === meetingId)
-      
-      if (meetingIndex !== -1) {
-        const meeting = updatedStandard.meetings[meetingIndex]
-        
-        switch (type) {
-          case 'base':
-            meeting.previousDocument = newDocument
-            break
-          case 'proposal':
-            meeting.proposals.push(newDocument)
-            break
-          case 'revision':
-            if (proposalId) {
-              if (!meeting.revisions[proposalId]) {
-                meeting.revisions[proposalId] = []
-              }
-              meeting.revisions[proposalId].push(newDocument)
-            }
-            break
-          case 'result':
-            meeting.resultDocument = newDocument
-            break
-          case 'result-revision':
-            meeting.resultRevisions.push(newDocument)
-            break
-        }
-        
-        updateStandard(updatedStandard)
-      }
-
-    } catch (error) {
-      console.error('업로드 오류:', error)
-      alert('파일 업로드 중 오류가 발생했습니다')
-    }
-  }, [standard])
+const { handleEditMeeting, handleSaveMeeting, handleFileUpload } = useMeetingHandlers(standard, setStandard, updateStandard)
 
   // 메모 토글 핸들러
   const handleMemoToggle = useCallback((proposalId: string) => {
@@ -687,39 +586,6 @@ function StatusSelector({
 
 
 // 메모 컴포넌트를 별도로 분리
-function MemoSection({ 
-  proposal, 
-  isExpanded, 
-  memo, 
-  onMemoChange,
-  onMemoBlur
-}: { 
-  proposal: Document
-  isExpanded: boolean
-  memo: string
-  onMemoChange: (value: string) => void
-  onMemoBlur: (value: string) => void
-}) {
-  if (!isExpanded) return null
-
-  return (
-    <div className="memo-slide-container expanding">
-      <div className="mt-4 border-t pt-4">
-        <label className="block text-sm font-medium text-gray-700 mb-2">
-          메모 (기고서: {proposal.name})
-        </label>
-        <textarea
-          className="w-full p-3 border border-gray-300 rounded-lg resize-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-          rows={3}
-          placeholder="이 기고서에 대한 메모를 입력하세요..."
-          value={memo}
-          onChange={(e) => onMemoChange(e.target.value)}
-          onBlur={(e) => onMemoBlur(e.target.value)}
-        />
-      </div>
-    </div>
-  )
-}
 
 function MeetingTab({
   meeting,
@@ -1164,7 +1030,7 @@ function MeetingTab({
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
-                          handleEditMeeting(meeting);
+                          handleEditMeeting(meeting, setEditingMeeting, setEditMeetingOpen);
                         }}
                         className="bg-blue-500 hover:bg-blue-600 text-white rounded-full p-1 text-xs"
                         title="회의 수정"
