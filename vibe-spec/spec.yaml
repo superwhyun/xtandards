@@ -1,0 +1,321 @@
+# vibe-spec: 표준문서 드래그&드랍 관리 시스템 명세
+
+standard_document_management:
+  description: |
+    표준문서 개발을 드래그 앤 드롭 방식으로 관리하는 시스템.
+    각 표준안(acronym)마다 별도의 페이지가 존재하며, 주소창에 acronym이 노출되어 직관적으로 접근 가능.
+    각 표준안 페이지는 여러 개의 회의 탭으로 구성된다.
+
+  current_implementation_status:
+# vibe-spec: 표준문서 드래그&드랍 관리 시스템 명세
+
+standard_document_management:
+  description: |
+    표준문서 개발을 드래그 앤 드롭 방식으로 관리하는 시스템.
+    각 표준안(acronym)마다 별도의 페이지가 존재하며, 주소창에 acronym이 노출되어 직관적으로 접근 가능.
+    각 표준안 페이지는 여러 개의 회의 탭으로 구성된다.
+
+  current_implementation_status:
+    completed_features:
+      ui_and_layout:
+        - 메인 페이지 새 표준문서 등록 다이얼로그
+        - 동적 라우팅 (/[acronym] 페이지)
+        - 좌측 세로 사이드바 회의 탭 구조
+        - 새 회의 추가 (+) 버튼 및 메타데이터 등록
+        - Base Document / 기고서 및 수정본 / Output Document 구역 분리
+        - 반응형 웹 디자인 (모바일/태블릿/데스크톱 지원)
+        - 홈으로 돌아가기 버튼 (데스크톱/모바일 모두)
+        - 모바일에서 사이드바가 상단으로 이동하는 적응형 레이아웃
+
+      drag_and_drop:
+        - 첫 회의시 Base Document 드롭존
+        - 드래그&드롭 파일 업로드 UI (모든 영역에서 지원)
+        - 기고서 추가 드롭존
+        - 수정본 추가 드롭존 (기고서별로 개별 관리)
+        - Output Document 드롭존
+        - Output Document 수정본 드롭존
+
+      file_management:
+        - 실제 파일 업로드 및 서버 저장 기능 (/data/{acronym}/{meetingId}/ 구조)
+        - 지원 파일 형식: PDF, DOC, DOCX, TXT
+        - 파일 크기 제한: 10MB
+        - 중복 파일명 방지 (타임스탬프 기반)
+        - 파일 다운로드 기능 (브라우저 다운로드 트리거)
+        - 파일 삭제 기능 (체인 고려한 스마트 삭제)
+
+      document_management:
+        - Accept/Withdraw/Reject 상태 선택기 (드롭다운 형태)
+        - 상태별 문서 시각화 (승인/거부/보류)
+        - 문서간 연결 관계 관리
+        - 최종 수정본 배경색 구분 표시 (노란색 배경)
+        - 파일명 전체 표시 (카드 크기 내에서 최대한 표시)
+        - 문서 카드 크기 통일 (기고서/수정본 동일 크기)
+
+      workflow_management:
+        - 회의 완료/재개 토글 기능 (Finalize 기능)
+        - 회의 완료시 다음 회의의 Base Document 자동 연결
+        - 승인된 기고서별 메모 기능 (슬라이딩 UI)
+        - 메모 자동 저장 (onBlur 이벤트 기반)
+        - 승인된 문서 요약 표시 (기고서명, 메모, 수정횟수 포함)
+
+      data_persistence:
+        - localStorage 기반 데이터 영속성
+        - 표준문서별 메타데이터 저장
+        - 회의 정보 저장 (제목, 날짜, 설명, 완료 상태)
+        - 파일 정보 및 경로 저장
+        - 문서 상태 추적 (Accept/Withdraw/Reject)
+        - 문서간 연결 관계 저장
+        - 기고서별 메모 저장 및 관리
+
+      user_experience:
+        - 터치패드 스크롤시 페이지 뒤로가기 방지
+        - 부드러운 횡스크롤 (커스텀 스크롤바)
+        - 메모 슬라이딩 애니메이션 (번쩍임 없는 부드러운 전환)
+        - 파일 삭제 시 체인 종속성 고려 (최종 revision만 삭제 가능)
+        - 역순 삭제로 전체 체인 삭제 가능
+
+    todo_features:
+      advanced_file_management:
+        - description: "파일 버전 히스토리 및 백업"
+        - requirements:
+          - 파일 변경 이력 추적
+          - 이전 버전으로 롤백 기능
+          - 자동 백업 시스템
+          - 파일 무결성 검증
+        - current_status: "기본 파일 관리만 구현됨"
+
+      database_integration:
+        - description: "실제 데이터베이스 연동 (localStorage 대체)"
+        - requirements:
+          - PostgreSQL/MySQL 연동
+          - 사용자별 데이터 분리
+          - 동시 편집 충돌 방지
+          - 데이터 백업 및 복구
+        - current_status: "localStorage만 사용 중"
+
+      authentication_and_authorization:
+        - description: "사용자 인증 및 권한 관리"
+        - requirements:
+          - 사용자 로그인/로그아웃
+          - 표준문서별 접근 권한
+          - 회의별 편집 권한
+          - 관리자 권한 시스템
+          - 감사 로그 (audit trail)
+        - current_status: "미구현"
+
+      collaboration_features:
+        - description: "실시간 협업 기능"
+        - requirements:
+          - 다중 사용자 동시 편집
+          - 실시간 상태 동기화
+          - 댓글 및 토론 시스템
+          - 알림 시스템
+          - 버전 충돌 해결
+        - current_status: "미구현"
+
+      advanced_ui_features:
+        - description: "고급 사용자 인터페이스"
+        - requirements:
+          - PDF 파일 미리보기
+          - 문서 비교 기능 (diff view)
+          - 고급 검색 및 필터링
+          - 문서 템플릿 시스템
+          - 대시보드 및 통계
+          - 다크모드 지원
+        - current_status: "기본 UI만 구현됨"
+
+      export_and_reporting:
+        - description: "내보내기 및 보고서 기능"
+        - requirements:
+          - 회의록 자동 생성
+          - PDF 보고서 출력
+          - Excel 데이터 내보내기
+          - 진행 상황 대시보드
+          - 통계 및 분석 차트
+        - current_status: "미구현"
+
+  page_structure:
+    - main_page:
+        url: "/"
+        description: "표준문서 목록 및 새 표준문서 등록"
+        features:
+          - 등록된 표준문서 카드 목록
+          - 새 표준문서 등록 다이얼로그
+          - 표준문서별 회의 수 및 최근 업데이트 표시
+        status: "구현 완료"
+
+    - acronym_page:
+        url: "/[acronym]"
+        description: "각 표준안(acronym)별로 접근하는 메인 페이지"
+        layout:
+          - left_sidebar:
+              description: "세로 탭 형태의 회의 목록"
+              features:
+                - 회의별 탭 (날짜, 제목 표시)
+                - 완료된 회의 표시 (체크 아이콘)
+                - 새 회의 추가 (+) 버튼
+                - 회의 메타데이터 등록 다이얼로그
+          - main_content:
+              description: "선택된 회의의 문서 관리 영역"
+              sections:
+                - base_document:
+                    position: "왼쪽 (2/12 컬럼)"
+                    description: "이전 회의 결과문서 또는 첫 회의시 업로드 드롭존"
+                    color_theme: "slate (회색)"
+                - proposals_revisions:
+                    position: "중앙 (7/12 컬럼)"
+                    description: "기고서 및 수정본 관리 영역"
+                    color_theme: "blue (파란색)"
+                    features:
+                      - 기고서별 개별 패널
+                      - 수정본 체인 관리
+                      - Accept/Withdraw/Reject 상태 선택
+                      - 새 기고서 추가 드롭존
+                - output_document:
+                    position: "오른쪽 (3/12 컬럼)"
+                    description: "회의 결과문서 업로드 및 수정본 관리"
+                    color_theme: "green (녹색)"
+        status: "UI 구현 완료, 백엔드 연동 필요"
+
+  workflow:
+    meeting_flow:
+      1. "새 회의 생성 (날짜, 제목, 설명 입력)"
+      2. "Base Document 확인 (이전 회의 결과 자동 연결 또는 첫 회의시 업로드)"
+      3. "기고서 드래그&드롭 업로드"
+      4. "기고서별 수정본 체인 관리"
+      5. "기고서별 상태 설정 (Accept/Withdraw/Reject)"
+      6. "Output Document 업로드 (Accept된 문서들만 연결)"
+      7. "Output Document 수정본 관리"
+      8. "Finalize 버튼으로 회의 완료 (모든 드롭존 제거)"
+
+    document_linking:
+      - "Base Document → 기고서 (자동 연결)"
+      - "기고서 → 수정본 (체인 형태)"
+      - "Accept된 기고서/수정본 → Output Document (조건부 연결)"
+      - "Output Document → Output 수정본 (체인 형태)"
+      - "완료된 회의의 Output → 다음 회의의 Base (자동 연결)"
+
+  visual_design:
+    connection_lines:
+      - "Accept된 문서: 녹색-파란색 그라데이션 화살표"
+      - "기본/거부된 문서: 회색 화살표"
+      - "연결선으로 문서간 관계 시각화"
+    
+    status_indicators:
+      - "Accept: 녹색 배지"
+      - "Reject: 빨간색 배지"
+      - "Withdraw: 노란색 배지"
+      - "Pending: 회색 배지"
+
+    section_themes:
+      - "Base Document: slate 테마 (회색)"
+      - "기고서 및 수정본: blue 테마 (파란색)"
+      - "Output Document: green 테마 (녹색)"
+
+  technical_implementation:
+    frontend_stack:
+      - "Next.js 15 (App Router)"
+      - "React 19"
+      - "TypeScript"
+      - "Tailwind CSS"
+      - "shadcn/ui"
+    
+    backend_stack:
+      - "Next.js API Routes"
+      - "Node.js/Express 기반 파일 처리"
+      - "multer를 이용한 파일 업로드"
+      - "파일 시스템 기반 저장소"
+    
+    data_storage:
+      - "localStorage (임시, 데이터베이스 대체 예정)"
+      - "파일 시스템: /data/{acronym}/{meetingId}/ 구조"
+      - "JSON 기반 메타데이터 저장"
+    
+    implemented_apis:
+      - "POST /api/upload - 파일 업로드"
+      - "GET /api/download - 파일 다운로드"
+    
+    file_structure:
+      - "/app/page.tsx - 메인 페이지 (표준문서 목록)"
+      - "/app/[acronym]/page.tsx - 표준문서별 상세 페이지"
+      - "/app/api/upload/route.ts - 파일 업로드 API"
+      - "/app/api/download/route.ts - 파일 다운로드 API"
+      - "/components/DropZone.tsx - 드래그&드롭 컴포넌트"
+      - "/components/DocumentCard.tsx - 문서 카드 컴포넌트"
+      - "/components/StatusSelector.tsx - 상태 선택 드롭다운"
+      - "/components/ConnectionLine.tsx - 문서간 연결선"
+      - "/components/MeetingTab.tsx - 회의 탭 컴포넌트"
+      - "/data/{acronym}/{meetingId}/ - 파일 저장 디렉토리"
+
+  current_limitations:
+    performance:
+      - "localStorage 용량 제한 (대용량 프로젝트 시 문제)"
+      - "클라이언트 사이드 렌더링으로 인한 초기 로딩"
+      - "파일 업로드시 브라우저 메모리 사용량 증가"
+    
+    functionality:
+      - "사용자 인증 미구현으로 공용 액세스"
+      - "실시간 협업 불가능"
+      - "파일 버전 관리 부족"
+      - "백업 및 복구 시스템 없음"
+    
+    ui_ux:
+      - "모바일에서 드래그&드롭 일부 제약"
+      - "대용량 파일 업로드시 진행률 표시 없음"
+      - "오프라인 모드 미지원"
+
+  deployment_considerations:
+    environment_setup:
+      - "Node.js 18+ 환경 필요"
+      - "/data 디렉토리 쓰기 권한 설정"
+      - "10MB 파일 업로드를 위한 서버 설정"
+    
+    production_checklist:
+      - "환경 변수 설정 (업로드 경로, 파일 크기 제한 등)"
+      - "HTTPS 설정 (파일 업로드 보안)"
+      - "백업 전략 수립"
+      - "로그 시스템 구축"
+      - "모니터링 설정"
+
+  next_session_priorities:
+    high_priority:
+      - "데이터베이스 연동 (PostgreSQL/MySQL)"
+      - "사용자 인증 시스템 구현"
+      - "실시간 협업 기능 추가"
+    
+    medium_priority:
+      - "PDF 미리보기 기능"
+      - "파일 버전 히스토리"
+      - "고급 검색 및 필터링"
+    
+    low_priority:
+      - "다크모드 지원"
+      - "모바일 앱 개발"
+      - "API 문서화"
+
+  note: |
+    **현재 구현 상태 요약 (2025.06.06 기준):**
+    
+    ✅ **완전 구현된 기능들:**
+    - 드래그&드롭 파일 업로드/다운로드 시스템
+    - 반응형 웹 인터페이스 (모바일/데스크톱)
+    - 기고서별 메모 기능 (슬라이딩 UI)
+    - 문서 상태 관리 (Accept/Withdraw/Reject)
+    - 회의 완료/재개 토글
+    - 스마트 파일 삭제 (체인 종속성 고려)
+    - 승인된 문서 요약 표시
+    
+    🚧 **주요 제약사항:**
+    - localStorage 기반 (데이터베이스 필요)
+    - 단일 사용자 모드 (인증 시스템 없음)
+    - 실시간 협업 불가능
+    
+    🎯 **다음 세션 목표:**
+    1. 데이터베이스 연동 (PostgreSQL/MySQL)
+    2. 사용자 인증 시스템 구현
+    3. 다중 사용자 지원 준비
+    
+    **기술적 고려사항:**
+    - 현재 시스템은 프로토타입으로 완전히 작동함
+    - 프로덕션 배포를 위해서는 데이터베이스 마이그레이션 필요
+    - 모든 핵심 워크플로우가 구현되어 사용자 테스트 가능한 상태
