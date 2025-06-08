@@ -70,7 +70,7 @@ function AcronymPage() {
   const [activeMeetingId, setActiveMeetingId] = useState<string>("")
   const [expandedMemos, setExpandedMemos] = useState<{ [key: string]: boolean }>({}) // 메모 확장 상태
 
-  const handleLogin = (role: UserRole, password: string): boolean => {
+  const handleLogin = (role: UserRole, password: string, username?: string): boolean => {
     const chairPassword = localStorage.getItem('chairPassword') || 'chair'
     const contributorPassword = localStorage.getItem('contributorPassword') || 'cont'
     
@@ -81,7 +81,7 @@ function AcronymPage() {
       const authState = {
         isAuthenticated: true,
         role,
-        user: role
+        user: username || role
       }
       setAuth(authState)
       // 인증 정보를 localStorage에 저장
@@ -118,8 +118,10 @@ function AcronymPage() {
       const standardData = getStandardData(acronym)
       if (standardData) {
         setStandard(standardData)
-        if (standardData.meetings.length > 0) {
-          setActiveMeetingId(standardData.meetings[0].id)
+        // activeMeetingId가 설정되지 않았거나, 설정된 미팅이 더 이상 존재하지 않을 때만 마지막 미팅으로 설정
+        if (standardData.meetings.length > 0 && 
+            (!activeMeetingId || !standardData.meetings.find(m => m.id === activeMeetingId))) {
+          setActiveMeetingId(standardData.meetings[standardData.meetings.length - 1].id)
         }
       } else {
         // 표준문서가 없으면 새로 생성
@@ -197,7 +199,7 @@ function AcronymPage() {
     saveStandardData(updatedStandard)
   }
 
-const { handleEditMeeting, handleSaveMeeting, handleFileUpload } = useMeetingHandlers(standard, setStandard, updateStandard)
+const { handleEditMeeting, handleSaveMeeting, handleFileUpload } = useMeetingHandlers(standard, setStandard, updateStandard, auth.user || undefined)
 
   // 메모 토글 핸들러
   const handleMemoToggle = useCallback((proposalId: string) => {
@@ -449,7 +451,7 @@ const { handleEditMeeting, handleSaveMeeting, handleFileUpload } = useMeetingHan
     if (activeMeetingId === meetingId) {
       const remainingMeetings = updatedStandard.meetings;
       if (remainingMeetings.length > 0) {
-        setActiveMeetingId(remainingMeetings[0].id);
+        setActiveMeetingId(remainingMeetings[remainingMeetings.length - 1].id);
       } else {
         setActiveMeetingId('');
       }
@@ -727,6 +729,7 @@ function MeetingTab({
                           onDelete={() => onFileDelete(revision.id, "revision", proposal.id, revision.filePath)}
                           canDelete={isLastRevision}
                           isLatest={isLastRevision}
+                          revisionIndex={index}
                         />
                       </div>
                     )
@@ -809,6 +812,7 @@ function MeetingTab({
                             onDelete={() => onFileDelete(revision.id, "result-revision", undefined, revision.filePath)}
                             canDelete={isLastRevision}
                             isLatest={isLastRevision}
+                            revisionIndex={index}
                           />
                         </div>
                       )

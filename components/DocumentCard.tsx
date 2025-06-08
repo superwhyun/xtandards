@@ -16,6 +16,7 @@ interface DocumentCardProps {
   onMemoClick?: () => void;
   canDelete?: boolean;
   isLatest?: boolean;
+  revisionIndex?: number; // 수정본 인덱스
 }
 
 export default function DocumentCard({
@@ -26,6 +27,7 @@ export default function DocumentCard({
   onMemoClick,
   canDelete = true,
   isLatest = false,
+  revisionIndex,
 }: DocumentCardProps) {
   const getTypeInfo = (type: string) => {
     switch (type) {
@@ -55,18 +57,45 @@ export default function DocumentCard({
     }
   };
 
+  const getTypeLabel = (type: string, revisionIndex?: number) => {
+    switch (type) {
+      case "previous":
+        return "B";
+      case "proposal":
+        return "C";
+      case "revision":
+        return `R${(revisionIndex || 0) + 1}`;
+      case "result":
+        return "OD";
+      default:
+        return "";
+    }
+  };
+
+  // Chair가 업로드한 문서인지 확인
+  const isChairUpload = document.uploader === 'chair';
+
   const typeInfo = getTypeInfo(document.type);
   const baseHeight = "h-44"; // 모든 카드 크기 동일하게
+  const typeLabel = getTypeLabel(document.type, revisionIndex);
 
   return (
     <Card
       className={cn(
-        "w-48 transition-all duration-300 hover:shadow-lg hover:scale-105 border-2 border-gray-300 shadow-md flex flex-col",
+        "w-48 transition-all duration-300 hover:shadow-lg hover:scale-105 border-2 border-gray-300 shadow-md flex flex-col relative",
         baseHeight,
         document.status === "rejected" && "opacity-60",
-        isLatest ? "bg-yellow-50 border-yellow-300" : "bg-white" // 최종 수정본 배경색 구분
+        isLatest ? "bg-yellow-50 border-yellow-300" : 
+        isChairUpload ? "bg-gray-100 border-gray-400" : "bg-white" // Chair 업로드는 회색 배경
       )}
     >
+      {/* 타입 라벨 - 오른쪽 하단 */}
+      {typeLabel && (
+        <div className="absolute bottom-2 right-2 text-2xl font-bold text-gray-400 select-none pointer-events-none">
+          {typeLabel}
+        </div>
+      )}
+      
       <CardHeader className="pb-1 px-3 pt-3 flex-1">
         <div className="flex flex-col h-full">
           {/* 파일명 - 최대한 공간 활용 */}
@@ -130,10 +159,18 @@ export default function DocumentCard({
               )}
             </div>
             
-            {/* 날짜 */}
-            <p className="text-xs text-gray-500">
-              {new Date(document.uploadDate).toLocaleDateString("ko-KR")}
-            </p>
+            {/* 날짜와 업로더 */}
+            <div className={cn(
+              "text-xs space-y-1",
+              isChairUpload ? "text-gray-600" : "text-gray-500" // Chair 업로드는 글자색 진하게
+            )}>
+              <p>{new Date(document.uploadDate).toLocaleDateString("ko-KR")}</p>
+              {document.uploader && (
+                <p className="truncate" title={`업로드: ${document.uploader}`}>
+                  by {document.uploader}
+                </p>
+              )}
+            </div>
           </div>
         </div>
       </CardHeader>

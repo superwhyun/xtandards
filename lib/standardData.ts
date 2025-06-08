@@ -8,10 +8,13 @@ export const getStandardData = (acronym: string): Standard | null => {
   const foundStandard = standards.find((s: any) => s.acronym === acronym)
 
   if (foundStandard) {
+    // meetings가 배열이 아닌 경우 (숫자인 경우) 빈 배열로 초기화
+    const meetings = Array.isArray(foundStandard.meetings) ? foundStandard.meetings : []
+    
     // 회의 데이터가 없으면 빈 배열로 초기화, memos 필드도 확인
     return {
       ...foundStandard,
-      meetings: (foundStandard.meetings || []).map((meeting: any) => ({
+      meetings: meetings.map((meeting: any) => ({
         ...meeting,
         memos: meeting.memos || {}
       }))

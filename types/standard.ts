@@ -6,6 +6,7 @@ export interface Document {
   connections: string[]
   status?: "accepted" | "review" | "rejected" | "withdrawn" | "pending"
   filePath?: string
+  uploader?: string
 }
 
 export interface Meeting {

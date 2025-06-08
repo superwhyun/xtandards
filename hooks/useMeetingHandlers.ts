@@ -1,7 +1,7 @@
 import { useCallback } from "react";
 import { Standard, Meeting, Document } from "@/types/standard";
 
-export function useMeetingHandlers(standard: Standard | null, setStandard: (s: Standard) => void, updateStandard: (s: Standard) => void) {
+export function useMeetingHandlers(standard: Standard | null, setStandard: (s: Standard) => void, updateStandard: (s: Standard) => void, currentUser?: string) {
   // 회의 수정 핸들러
   const handleEditMeeting = (meeting: Meeting, setEditingMeeting: (m: Meeting) => void, setEditMeetingOpen: (b: boolean) => void) => {
     setEditingMeeting(meeting);
@@ -56,7 +56,8 @@ export function useMeetingHandlers(standard: Standard | null, setStandard: (s: S
         uploadDate: new Date().toISOString(),
         connections: [],
         status: 'pending',
-        filePath: result.filePath
+        filePath: result.filePath,
+        uploader: currentUser
       };
       const updatedStandard = { ...standard };
       const meetingIndex = updatedStandard.meetings.findIndex(m => m.id === meetingId);

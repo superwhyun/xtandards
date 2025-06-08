@@ -16,12 +16,13 @@ export interface AuthState {
 }
 
 interface LoginScreenProps {
-  onLogin: (role: UserRole, password: string) => boolean
+  onLogin: (role: UserRole, password: string, username?: string) => boolean
 }
 
 export default function LoginScreen({ onLogin }: LoginScreenProps) {
   const [selectedRole, setSelectedRole] = useState<UserRole | null>(null)
   const [password, setPassword] = useState("")
+  const [username, setUsername] = useState("")
   const [error, setError] = useState("")
 
   const handleRoleSelect = (role: UserRole) => {
@@ -29,6 +30,12 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
     setError("")
     // 기본 비밀번호 설정 (편의를 위해)
     setPassword(role === "chair" ? "chair" : "cont")
+    
+    // Contributor인 경우 저장된 사용자명 로드
+    if (role === "contributor") {
+      const savedUsername = localStorage.getItem('contributorUsername') || ''
+      setUsername(savedUsername)
+    }
   }
 
   const handleLogin = () => {
@@ -36,11 +43,19 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
       setError("역할과 비밀번호를 모두 입력해주세요")
       return
     }
+    
+    if (selectedRole === "contributor" && !username) {
+      setError("사용자명을 입력해주세요")
+      return
+    }
 
-    const success = onLogin(selectedRole, password)
+    const success = onLogin(selectedRole, password, username)
     if (!success) {
       setError("비밀번호가 올바르지 않습니다")
       setPassword("")
+    } else if (selectedRole === "contributor" && username) {
+      // Contributor 사용자명 저장
+      localStorage.setItem('contributorUsername', username)
     }
   }
 
@@ -124,6 +139,18 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
+            {selectedRole === "contributor" && (
+              <div className="space-y-2">
+                <Label htmlFor="username">사용자명</Label>
+                <Input
+                  id="username"
+                  type="text"
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value)}
+                  placeholder="사용자명을 입력하세요"
+                />
+              </div>
+            )}
             <div className="space-y-2">
               <Label htmlFor="password">비밀번호</Label>
               <Input
@@ -149,7 +176,7 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
               <Button 
                 onClick={handleLogin} 
                 className="flex-1"
-                disabled={!password}
+                disabled={!password || (selectedRole === "contributor" && !username)}
               >
                 로그인
               </Button>
