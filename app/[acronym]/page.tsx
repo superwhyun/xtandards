@@ -176,12 +176,69 @@ function AcronymPage() {
 const { handleEditMeeting, handleSaveMeeting, handleFileUpload } = useMeetingHandlers(standard, setStandard, updateStandard, auth.user || undefined)
 
   // 메모 토글 핸들러
-  const handleMemoToggle = useCallback((proposalId: string) => {
+  const handleMemoToggle = useCallback(async (proposalId: string) => {
+    const isCurrentlyExpanded = expandedMemos[proposalId]
+    
+    // 메모를 열려고 하는 경우
+    if (!isCurrentlyExpanded) {
+      // 현재 메모 내용 확인
+      let currentMemo = ""
+      if (standard) {
+        // 모든 회의에서 해당 proposal 찾기
+        for (const meeting of standard.meetings) {
+          const proposal = meeting.proposals.find(p => p.id === proposalId)
+          if (proposal) {
+            // 메모 내용 가져오기
+            if (meeting.memos && meeting.memos[proposalId]) {
+              currentMemo = meeting.memos[proposalId]
+            }
+            
+            // 메모가 비어있고 proposal에 abstract가 있으면 자동으로 넣기
+            if (!currentMemo.trim() && proposal.abstract && proposal.abstract.trim()) {
+              try {
+                console.log('API 호출: POST /api/memo (Auto-fill Abstract)')
+                const response = await fetch('/api/memo', {
+                  method: 'POST',
+                  headers: {
+                    'Content-Type': 'application/json',
+                  },
+                  body: JSON.stringify({
+                    acronym: standard.acronym,
+                    meetingId: meeting.id,
+                    proposalId: proposalId,
+                    memo: proposal.abstract
+                  })
+                })
+                
+                if (!response.ok) {
+                  console.error('메모 자동 저장 실패')
+                } else {
+                  // 로컬 상태도 업데이트
+                  const updatedStandard = { ...standard }
+                  const meetingIndex = updatedStandard.meetings.findIndex(m => m.id === meeting.id)
+                  if (meetingIndex !== -1) {
+                    if (!updatedStandard.meetings[meetingIndex].memos) {
+                      updatedStandard.meetings[meetingIndex].memos = {}
+                    }
+                    updatedStandard.meetings[meetingIndex].memos[proposalId] = proposal.abstract
+                    setStandard(updatedStandard)
+                  }
+                }
+              } catch (error) {
+                console.error('메모 자동 저장 오류:', error)
+              }
+            }
+            break
+          }
+        }
+      }
+    }
+    
     setExpandedMemos(prev => ({
       ...prev,
       [proposalId]: !prev[proposalId]
     }))
-  }, [])
+  }, [expandedMemos, standard, setStandard])
 
   // 메모 업데이트 핸들러
   const handleMemoUpdate = useCallback(async (meetingId: string, proposalId: string, memo: string) => {
@@ -282,39 +339,41 @@ const { handleEditMeeting, handleSaveMeeting, handleFileUpload } = useMeetingHan
         
         switch (type) {
           case 'base':
-            meeting.previousDocument = undefined
-            break
+            meeting.previousDocument = undefined;
+            break;
           case 'proposal':
-            meeting.proposals = meeting.proposals.filter(p => p.id !== documentId)
+            meeting.proposals = meeting.proposals.filter(p => p.id !== documentId);
             // 해당 proposal의 revision도 모두 삭제
             if (proposalId) {
-              delete meeting.revisions[proposalId]
+              delete meeting.revisions[proposalId];
             }
-            break
+            break;
           case 'revision':
             if (proposalId && meeting.revisions[proposalId]) {
-              meeting.revisions[proposalId] = meeting.revisions[proposalId].filter(r => r.id !== documentId)
+              meeting.revisions[proposalId] = meeting.revisions[proposalId].filter(r => r.id !== documentId);
               if (meeting.revisions[proposalId].length === 0) {
-                delete meeting.revisions[proposalId]
+                delete meeting.revisions[proposalId];
               }
             }
-            break
+            break;
           case 'result':
-            meeting.resultDocument = undefined
-            break
+            meeting.resultDocument = undefined;
+            break;
           case 'result-revision':
-            meeting.resultRevisions = meeting.resultRevisions.filter(r => r.id !== documentId)
-            break
+            meeting.resultRevisions = meeting.resultRevisions.filter(r => r.id !== documentId);
+            break;
+          default:
+            break;
         }
-        
-        setStandard(updatedStandard)
+
+        setStandard(updatedStandard);
       }
       
     } catch (error) {
-      console.error('파일 삭제 오류:', error)
-      alert('파일 삭제 중 오류가 발생했습니다')
+      console.error('파일 삭제 오류:', error);
+      alert('파일 삭제 중 오류가 발생했습니다');
     }
-  }, [standard])
+  }, [standard]);
   const handleStatusChange = useCallback(async (meetingId: string, proposalId: string, status: "accepted" | "review" | "rejected") => {
     if (!standard) return
     
@@ -503,7 +562,7 @@ const { handleEditMeeting, handleSaveMeeting, handleFileUpload } = useMeetingHan
         if (updatedStandard.meetings.length > 0) {
           setActiveMeetingId(updatedStandard.meetings[0].id)
         } else {
-          setActiveMeetingId(null)
+          setActiveMeetingId("")
         }
       }
 
@@ -513,7 +572,7 @@ const { handleEditMeeting, handleSaveMeeting, handleFileUpload } = useMeetingHan
       console.error('회의 삭제 오류:', error)
       alert('회의 삭제 중 오류가 발생했습니다.')
     }
-  }, [standard, activeMeetingId])
+  }, [standard, activeMeetingId]);
 
   // 새 회의 추가 핸들러
   // 새 회의 추가 핸들러
@@ -544,13 +603,13 @@ const { handleEditMeeting, handleSaveMeeting, handleFileUpload } = useMeetingHan
       }
       
       // 중복 ID 체크 및 유니크 ID 생성
-      let uniqueId = meeting.title
-      let counter = 1
+      let uniqueId = meeting.title;
+      let counter = 1;
       while (standard.meetings.some(m => m.id === uniqueId)) {
-        uniqueId = `${meeting.title} (${counter})`
-        counter++
+        uniqueId = `${meeting.title} (${counter})`;
+        counter++;
       }
-      
+
       const newMeeting: Meeting = {
         id: uniqueId,
         startDate: meeting.startDate,
@@ -562,7 +621,7 @@ const { handleEditMeeting, handleSaveMeeting, handleFileUpload } = useMeetingHan
         resultRevisions: [],
         isCompleted: false,
         memos: {} // 메모 필드 초기화
-      }
+      };
 
       // 이전 회의가 있고 완료된 경우, 마지막 회의의 Output Document를 Base Document로 설정
       const completedMeetings = standard.meetings.filter(m => m.isCompleted);
@@ -570,10 +629,10 @@ const { handleEditMeeting, handleSaveMeeting, handleFileUpload } = useMeetingHan
         const lastCompletedMeeting = completedMeetings[completedMeetings.length - 1];
         if (lastCompletedMeeting.resultDocument) {
           // Output Document의 마지막 revision이 있으면 그걸 사용, 없으면 기본 resultDocument 사용
-          const lastRevision = lastCompletedMeeting.resultRevisions.length > 0 
+          const lastRevision = lastCompletedMeeting.resultRevisions.length > 0
             ? lastCompletedMeeting.resultRevisions[lastCompletedMeeting.resultRevisions.length - 1]
             : lastCompletedMeeting.resultDocument;
-          
+
           newMeeting.previousDocument = {
             ...lastRevision,
             id: `base-${Date.now()}`,
@@ -581,19 +640,19 @@ const { handleEditMeeting, handleSaveMeeting, handleFileUpload } = useMeetingHan
           };
         }
       }
-      
+
       const updatedStandard = {
         ...standard,
         meetings: [...standard.meetings, newMeeting]
-      }
-      updateStandard(updatedStandard)
-      setActiveMeetingId(newMeeting.id)
-      
+      };
+      updateStandard(updatedStandard);
+      setActiveMeetingId(newMeeting.id);
+
     } catch (error) {
-      console.error('회의 생성 오류:', error)
-      alert('회의 생성 중 오류가 발생했습니다.')
+      console.error('회의 생성 오류:', error);
+      alert('회의 생성 중 오류가 발생했습니다.');
     }
-  }, [standard])
+  }, [standard]);
 
   // 로딩 중이거나 로그인하지 않은 경우 로그인 화면 표시
   if (loading) {
@@ -829,4 +888,4 @@ const { handleEditMeeting, handleSaveMeeting, handleFileUpload } = useMeetingHan
     </div>
   )
 }
-export default AcronymPage
+export default AcronymPage;

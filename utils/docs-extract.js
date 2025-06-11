@@ -35,4 +35,4 @@ async function extractCellValue(docxPath, title) {
     }
 }
 
-extractCellValue("test.docx", "Title:");
+extractCellValue("test2.docx", "Abstract:");

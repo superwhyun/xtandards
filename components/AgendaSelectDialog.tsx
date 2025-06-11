@@ -32,21 +32,32 @@ const getAllMeetings = async (): Promise<Meeting[]> => {
     const data = await response.json()
     
     const meetings: Meeting[] = []
-    data.standards.forEach((standard: any) => {
-      if (Array.isArray(standard.meetings)) {
-        standard.meetings.forEach((meeting: any) => {
-          meetings.push({
-            id: meeting.id,
-            title: meeting.title,
-            startDate: meeting.startDate,
-            endDate: meeting.endDate,
-            description: meeting.description,
-            standardAcronym: standard.acronym,
-            standardTitle: standard.title
+    
+    // 각 표준문서별로 회의 목록 가져오기
+    for (const standard of data.standards) {
+      try {
+        console.log(`API 호출: GET /api/${standard.acronym}/meetings`)
+        const meetingResponse = await fetch(`/api/${standard.acronym}/meetings`)
+        if (!meetingResponse.ok) continue
+        
+        const meetingData = await meetingResponse.json()
+        if (Array.isArray(meetingData.meetings)) {
+          meetingData.meetings.forEach((meeting: any) => {
+            meetings.push({
+              id: meeting.id,
+              title: meeting.title,
+              startDate: meeting.startDate,
+              endDate: meeting.endDate,
+              description: meeting.description,
+              standardAcronym: standard.acronym,
+              standardTitle: standard.title
+            })
           })
-        })
+        }
+      } catch (error) {
+        console.error(`회의 조회 오류 (${standard.acronym}):`, error)
       }
-    })
+    }
     
     // 중복 제거 (같은 title을 가진 회의들)
     const uniqueMeetings = meetings.filter((meeting, index, self) => 

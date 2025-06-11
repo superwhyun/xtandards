@@ -31,8 +31,9 @@ export function useMeetingHandlers(standard: Standard | null, setStandard: (s: S
     if (!meeting) return;
 
     let extractedTitle = "";
+    let extractedAbstract = "";
     
-    // Word 문서이고 기고서 타입인 경우 Title 추출 시도
+    // Word 문서이고 기고서 타입인 경우 Title과 Abstract 추출 시도
     if ((type === 'proposal' || type === 'revision') && 
         (file.name.toLowerCase().endsWith('.docx') || file.name.toLowerCase().endsWith('.doc'))) {
       try {
@@ -43,7 +44,7 @@ export function useMeetingHandlers(standard: Standard | null, setStandard: (s: S
         const result = await mammoth.convertToHtml({ arrayBuffer })
         const html = result.value
         
-        // HTML을 파싱해서 표에서 Title 찾기
+        // HTML을 파싱해서 표에서 Title과 Abstract 찾기
         const parser = new DOMParser()
         const doc = parser.parseFromString(html, 'text/html')
         const tables = doc.querySelectorAll('table')
@@ -56,15 +57,17 @@ export function useMeetingHandlers(standard: Standard | null, setStandard: (s: S
               const cellText = cells[i].textContent?.trim().toLowerCase()
               if (cellText === 'title:' || cellText === 'title') {
                 extractedTitle = cells[i + 1].textContent?.trim() || ""
-                break
+              } else if (cellText === 'abstract:' || cellText === 'abstract') {
+                extractedAbstract = cells[i + 1].textContent?.trim() || ""
               }
+              if (extractedTitle && extractedAbstract) break
             }
-            if (extractedTitle) break
+            if (extractedTitle && extractedAbstract) break
           }
-          if (extractedTitle) break
+          if (extractedTitle && extractedAbstract) break
         }
       } catch (error) {
-        console.warn('Title 추출 실패:', file.name, error)
+        console.warn('Title/Abstract 추출 실패:', file.name, error)
       }
     }
 
@@ -75,6 +78,9 @@ export function useMeetingHandlers(standard: Standard | null, setStandard: (s: S
     formData.append('type', type);
     if (extractedTitle) {
       formData.append('extractedTitle', extractedTitle);
+    }
+    if (extractedAbstract) {
+      formData.append('extractedAbstract', extractedAbstract);
     }
     if (proposalId) {
       formData.append('proposalId', proposalId);

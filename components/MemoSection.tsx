@@ -34,8 +34,9 @@ export default function MemoSection({
   }, [isExpanded]);
 
   const handleChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    currentValueRef.current = e.target.value;
-    onMemoChange(e.target.value);
+    const newValue = e.target.value;
+    currentValueRef.current = newValue;
+    onMemoChange(newValue);
   };
 
   const handleBlur = () => {
@@ -43,8 +44,7 @@ export default function MemoSection({
     if (currentValueRef.current !== originalValueRef.current) {
       onMemoBlur(currentValueRef.current);
     }
-    // 메모창 닫기
-    onMemoToggle();
+    // 포커스를 잃을 때는 메모창을 닫지 않음
   };
 
   if (!isExpanded) return null;
@@ -56,10 +56,10 @@ export default function MemoSection({
       </label>
       <textarea
         ref={textareaRef}
-        className="w-full p-3 border border-gray-300 rounded-lg resize-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900 bg-white"
-        rows={3}
+        className="w-full p-3 border border-gray-300 rounded-lg resize-y focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900 bg-white min-h-24"
+        rows={6}
         placeholder="이 기고서에 대한 회의 논의 내용을 입력하세요..."
-        defaultValue={memo}
+        value={memo}
         onChange={handleChange}
         onBlur={handleBlur}
       />

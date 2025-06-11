@@ -3,8 +3,6 @@ import { writeFile, mkdir } from 'fs/promises'
 import { existsSync, readFileSync } from 'fs'
 import path from 'path'
 
-const STANDARDS_FILE = path.join(process.cwd(), 'data', 'standards.json')
-
 // 파일 경로에서 안전하지 않은 문자들을 교체하는 함수
 function sanitizeForPath(str: string): string {
   return str.replace(/[\/\\:*?"<>|]/g, '_')
@@ -19,6 +17,7 @@ export async function POST(request: NextRequest) {
     const type = formData.get('type') as string
     const proposalId = formData.get('proposalId') as string | null
     const extractedTitle = formData.get('extractedTitle') as string | null
+    const extractedAbstract = formData.get('extractedAbstract') as string | null
 
     if (!file || !acronym || !meetingId || !type) {
       return NextResponse.json(
@@ -27,34 +26,6 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // meetingId로 회의 타이틀 찾기
-    if (!existsSync(STANDARDS_FILE)) {
-      return NextResponse.json(
-        { error: '표준문서 데이터를 찾을 수 없습니다' },
-        { status: 404 }
-      )
-    }
-
-    const data = readFileSync(STANDARDS_FILE, 'utf8')
-    const standards = JSON.parse(data)
-    const standard = standards.standards.find((s: any) => s.acronym === acronym)
-    
-    if (!standard) {
-      return NextResponse.json(
-        { error: '표준문서를 찾을 수 없습니다' },
-        { status: 404 }
-      )
-    }
-
-    const meeting = standard.meetings.find((m: any) => m.id === meetingId)
-    if (!meeting) {
-      return NextResponse.json(
-        { error: '회의를 찾을 수 없습니다' },
-        { status: 404 }
-      )
-    }
-
-    const meetingTitle = meeting.title
     const safeMeetingId = sanitizeForPath(meetingId)
 
     // 파일 확장자 검증
@@ -132,6 +103,7 @@ export async function POST(request: NextRequest) {
       id: `doc-${Date.now()}`,
       name: extractedTitle && extractedTitle.trim() ? extractedTitle.trim() : file.name, // 추출된 제목 우선 사용
       fileName: file.name, // 원본 파일명 별도 저장
+      abstract: extractedAbstract && extractedAbstract.trim() ? extractedAbstract.trim() : '', // 추출된 Abstract
       type: type,
       uploadDate: new Date().toISOString(),
       connections: [],

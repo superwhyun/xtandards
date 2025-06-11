@@ -22,26 +22,17 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: '필수 필드가 누락되었습니다' }, { status: 400 })
     }
     
-    // 기존 데이터 읽기
-    if (!fs.existsSync(STANDARDS_FILE)) {
-      return NextResponse.json({ error: '표준문서 데이터를 찾을 수 없습니다' }, { status: 404 })
-    }
-    
-    const data = fs.readFileSync(STANDARDS_FILE, 'utf8')
-    const standards = JSON.parse(data)
-    
     // 각 표준문서에 회의 추가
     let createdCount = 0
+    const errors: string[] = []
     
-    standardAcronyms.forEach((acronym: string) => {
-      const standardIndex = standards.standards.findIndex((s: any) => s.acronym === acronym)
-      
-      if (standardIndex >= 0) {
-        const standard = standards.standards[standardIndex]
-        
-        // meetings 배열 초기화
-        if (!Array.isArray(standard.meetings)) {
-          standard.meetings = []
+    for (const acronym of standardAcronyms) {
+      try {
+        // 표준문서 폴더 확인
+        const standardDir = path.join(process.cwd(), 'data', acronym)
+        if (!fs.existsSync(standardDir)) {
+          errors.push(`표준문서 폴더가 없습니다: ${acronym}`)
+          continue
         }
         
         // 날짜 기반 ID 생성 (YYMM-title 형식)
@@ -52,33 +43,15 @@ export async function POST(request: NextRequest) {
         // 중복 ID 체크 및 유니크 ID 생성
         let uniqueId = `${yearMonth}-${title}`
         let counter = 1
-        while (standard.meetings.some((m: any) => m.id === uniqueId)) {
+        while (fs.existsSync(path.join(standardDir, sanitizeForPath(uniqueId)))) {
           uniqueId = `${yearMonth}-${title} (${counter})`
           counter++
         }
         
-        const newMeeting = {
-          id: uniqueId,
-          title,
-          startDate,
-          endDate,
-          description: description || '',
-          isCompleted: false,
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString()
-        }
-        
-        standard.meetings.push(newMeeting)
-        standard.updatedAt = new Date().toISOString()
-        standards.standards[standardIndex] = standard
-        createdCount++
-        
-        // 회의 폴더 생성 (meetingId 기반)
+        // 회의 폴더 생성
         const safeMeetingId = sanitizeForPath(uniqueId)
-        const meetingDir = path.join(process.cwd(), 'data', acronym, safeMeetingId)
-        if (!fs.existsSync(meetingDir)) {
-          fs.mkdirSync(meetingDir, { recursive: true })
-        }
+        const meetingDir = path.join(standardDir, safeMeetingId)
+        fs.mkdirSync(meetingDir, { recursive: true })
 
         // meeting.json 생성
         const meetingJsonPath = path.join(meetingDir, 'meeting.json')
@@ -100,11 +73,21 @@ export async function POST(request: NextRequest) {
         }
 
         fs.writeFileSync(meetingJsonPath, JSON.stringify(meetingData, null, 2))
+        createdCount++
+        
+      } catch (error) {
+        console.error(`회의 생성 오류 (${acronym}):`, error)
+        errors.push(`${acronym}: 회의 생성 실패`)
       }
-    })
+    }
     
-    // 파일에 저장
-    fs.writeFileSync(STANDARDS_FILE, JSON.stringify(standards, null, 2))
+    if (errors.length > 0) {
+      return NextResponse.json({ 
+        message: `${createdCount}개 회의 생성 완료, ${errors.length}개 오류`,
+        createdCount,
+        errors
+      }, { status: 207 }) // Multi-Status
+    }
     
     return NextResponse.json({ 
       message: `${createdCount}개 표준문서에 회의가 생성되었습니다`,
@@ -120,24 +103,43 @@ export async function POST(request: NextRequest) {
 // 전체 회의명 목록 조회
 export async function GET() {
   try {
-    if (!fs.existsSync(STANDARDS_FILE)) {
+    const dataDir = path.join(process.cwd(), 'data')
+    if (!fs.existsSync(dataDir)) {
       return NextResponse.json({ meetingTitles: [] })
     }
     
-    const data = fs.readFileSync(STANDARDS_FILE, 'utf8')
-    const standards = JSON.parse(data)
-    
     const titles = new Set<string>()
     
-    standards.standards.forEach((standard: any) => {
-      if (Array.isArray(standard.meetings)) {
-        standard.meetings.forEach((meeting: any) => {
-          if (meeting.title && meeting.title.trim()) {
-            titles.add(meeting.title.trim())
+    // 모든 표준문서 폴더 순회
+    const standardDirs = fs.readdirSync(dataDir, { withFileTypes: true })
+      .filter(dirent => dirent.isDirectory() && !dirent.name.startsWith('.'))
+      .map(dirent => dirent.name)
+    
+    for (const acronym of standardDirs) {
+      const standardDir = path.join(dataDir, acronym)
+      
+      // 각 표준문서의 미팅 폴더들 순회
+      if (fs.existsSync(standardDir)) {
+        const meetingDirs = fs.readdirSync(standardDir, { withFileTypes: true })
+          .filter(dirent => dirent.isDirectory())
+          .map(dirent => dirent.name)
+        
+        for (const meetingId of meetingDirs) {
+          const meetingJsonPath = path.join(standardDir, meetingId, 'meeting.json')
+          if (fs.existsSync(meetingJsonPath)) {
+            try {
+              const meetingData = fs.readFileSync(meetingJsonPath, 'utf8')
+              const meeting = JSON.parse(meetingData)
+              if (meeting.title && meeting.title.trim()) {
+                titles.add(meeting.title.trim())
+              }
+            } catch (error) {
+              console.error(`미팅 데이터 읽기 오류 (${acronym}/${meetingId}):`, error)
+            }
           }
-        })
+        }
       }
-    })
+    }
     
     return NextResponse.json({ 
       meetingTitles: Array.from(titles).sort() 

@@ -4,7 +4,7 @@ import path from 'path'
 
 const STANDARDS_FILE = path.join(process.cwd(), 'data', 'standards.json')
 
-// 특정 표준문서 정보 조회
+// 특정 표준문서 정보 조회 (미팅 목록 포함)
 export async function GET(
   request: NextRequest,
   { params }: { params: { acronym: string } }
@@ -24,7 +24,47 @@ export async function GET(
       return NextResponse.json({ error: '표준문서를 찾을 수 없습니다' }, { status: 404 })
     }
     
-    return NextResponse.json({ standard })
+    // 표준문서 폴더에서 미팅 목록 수집
+    const meetings: any[] = []
+    const standardDir = path.join(process.cwd(), 'data', acronym)
+    
+    if (fs.existsSync(standardDir)) {
+      const meetingDirs = fs.readdirSync(standardDir, { withFileTypes: true })
+        .filter(dirent => dirent.isDirectory())
+        .map(dirent => dirent.name)
+      
+      for (const meetingId of meetingDirs) {
+        const meetingJsonPath = path.join(standardDir, meetingId, 'meeting.json')
+        if (fs.existsSync(meetingJsonPath)) {
+          try {
+            const meetingData = fs.readFileSync(meetingJsonPath, 'utf8')
+            const meeting = JSON.parse(meetingData)
+            meetings.push({
+              id: meeting.id,
+              title: meeting.title,
+              startDate: meeting.startDate,
+              endDate: meeting.endDate,
+              description: meeting.description,
+              isCompleted: meeting.isCompleted,
+              createdAt: meeting.createdAt,
+              updatedAt: meeting.updatedAt
+            })
+          } catch (error) {
+            console.error(`미팅 데이터 읽기 오류 (${meetingId}):`, error)
+          }
+        }
+      }
+    }
+    
+    // 미팅을 생성일 기준으로 정렬
+    meetings.sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime())
+    
+    return NextResponse.json({ 
+      standard: {
+        ...standard,
+        meetings
+      }
+    })
     
   } catch (error) {
     console.error('표준문서 조회 오류:', error)
