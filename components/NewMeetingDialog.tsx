@@ -7,7 +7,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Plus } from "lucide-react";
 
 interface NewMeetingDialogProps {
-  onCreateMeeting: (meeting: { date: string; title: string; description?: string }) => void;
+  onCreateMeeting: (meeting: { startDate: string; endDate: string; title: string; description?: string }) => void;
 }
 
 export default function NewMeetingDialog({
@@ -15,15 +15,16 @@ export default function NewMeetingDialog({
 }: NewMeetingDialogProps) {
   const [open, setOpen] = useState(false);
   const [formData, setFormData] = useState({
-    date: "",
+    startDate: new Date().toISOString().split('T')[0],
+    endDate: new Date().toISOString().split('T')[0],
     title: "",
     description: "",
   });
 
   const handleSubmit = () => {
-    if (formData.date && formData.title) {
+    if (formData.startDate && formData.endDate && formData.title) {
       onCreateMeeting(formData);
-      setFormData({ date: "", title: "", description: "" });
+      setFormData({ startDate: new Date().toISOString().split('T')[0], endDate: new Date().toISOString().split('T')[0], title: "", description: "" });
       setOpen(false);
     }
   };
@@ -45,12 +46,21 @@ export default function NewMeetingDialog({
         </DialogHeader>
         <div className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="date">회의 날짜</Label>
+            <Label htmlFor="startDate">회의 시작날짜</Label>
             <Input
-              id="date"
+              id="startDate"
               type="date"
-              value={formData.date}
-              onChange={(e) => setFormData({ ...formData, date: e.target.value })}
+              value={formData.startDate}
+              onChange={(e) => setFormData({ ...formData, startDate: e.target.value })}
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="endDate">회의 종료날짜</Label>
+            <Input
+              id="endDate"
+              type="date"
+              value={formData.endDate}
+              onChange={(e) => setFormData({ ...formData, endDate: e.target.value })}
             />
           </div>
           <div className="space-y-2">
@@ -75,7 +85,7 @@ export default function NewMeetingDialog({
             <Button variant="outline" onClick={() => setOpen(false)} className="flex-1">
               취소
             </Button>
-            <Button onClick={handleSubmit} className="flex-1" disabled={!formData.date || !formData.title}>
+            <Button onClick={handleSubmit} className="flex-1" disabled={!formData.startDate || !formData.endDate || !formData.title}>
               생성
             </Button>
           </div>

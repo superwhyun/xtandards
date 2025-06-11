@@ -9,9 +9,13 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Checkbox } from "@/components/ui/checkbox"
-import { FileText, Calendar, Users, Plus, Settings, LogOut, Trash2, Check, Upload as UploadIcon } from "lucide-react"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { FileText, Calendar, Users, Plus, Settings, LogOut, Trash2, Check, Upload as UploadIcon, FileStack, ClipboardList } from "lucide-react"
 import LoginScreen, { UserRole, AuthState } from "@/components/auth/LoginScreen"
 import SettingsDialog from "@/components/auth/SettingsDialog"
+import AgendaSelectDialog from "@/components/AgendaSelectDialog"
+import MinutesSelectDialog from "@/components/MinutesSelectDialog"
+import DocumentGenerator from "@/components/DocumentGenerator"
 
 interface Standard {
   acronym: string
@@ -25,66 +29,135 @@ interface UploadedProposal {
   file: File
 }
 
-const getStoredStandards = (): Standard[] => {
-  if (typeof window === 'undefined') return []
-  const stored = localStorage.getItem('standards')
-  if (!stored) return []
-  
+const getStoredStandards = async (): Promise<Standard[]> => {
   try {
-    const parsedStandards = JSON.parse(stored)
-    // meetings가 배열인 경우 길이로 변환
-    return parsedStandards.map((standard: any) => ({
-      ...standard,
-      meetings: Array.isArray(standard.meetings) ? standard.meetings.length : (standard.meetings || 0)
+    const response = await fetch('/api/standards')
+    if (!response.ok) {
+      console.error('표준문서 조회 실패:', response.status, response.statusText)
+      return []
+    }
+    const data = await response.json()
+    
+    // API 응답 구조 확인
+    if (!data || !Array.isArray(data.standards)) {
+      console.error('잘못된 API 응답 구조:', data)
+      return []
+    }
+    
+    // API 응답을 Standard 형태로 변환
+    return data.standards.map((standard: any) => ({
+      acronym: standard.acronym,
+      title: standard.title,
+      meetings: Array.isArray(standard.meetings) ? standard.meetings.length : 0,
+      lastUpdate: standard.updatedAt ? new Date(standard.updatedAt).toISOString().split('T')[0] : new Date().toISOString().split('T')[0]
     }))
   } catch (error) {
-    console.error('표준문서 데이터 파싱 오류:', error)
+    console.error('표준문서 조회 오류:', error)
     return []
   }
 }
 
 function MeetingCreateDialog({
-  selectedStandards,
   onCreateMeetings,
   isOpen,
   onOpenChange,
 }: {
-  selectedStandards: Set<string>
-  onCreateMeetings: (meetingData: { date: string; title: string; description?: string }) => void
+  onCreateMeetings: (meetingData: { date: string; title: string; description?: string }, selectedStandards: string[]) => void
   isOpen: boolean
   onOpenChange: (open: boolean) => void
 }) {
   const [formData, setFormData] = useState({
-    date: new Date().toISOString().split('T')[0],
+    startDate: new Date().toISOString().split('T')[0],
+    endDate: new Date().toISOString().split('T')[0],
     title: "",
     description: "",
   })
+  const [selectedStandards, setSelectedStandards] = useState<Set<string>>(new Set())
+  const [standards, setStandards] = useState<Standard[]>([])
+  const [loading, setLoading] = useState(false)
+
+  // 다이얼로그가 열릴 때 표준문서 목록 로드
+  useEffect(() => {
+    if (isOpen) {
+      const loadStandards = async () => {
+        setLoading(true)
+        const standardsData = await getStoredStandards()
+        setStandards(standardsData)
+        setLoading(false)
+      }
+      loadStandards()
+    }
+  }, [isOpen])
 
   const handleSubmit = () => {
-    if (formData.date && formData.title && selectedStandards.size > 0) {
-      onCreateMeetings(formData)
-      setFormData({ date: new Date().toISOString().split('T')[0], title: "", description: "" })
+    if (formData.startDate && formData.endDate && formData.title && selectedStandards.size > 0) {
+      onCreateMeetings(formData, Array.from(selectedStandards))
+      setFormData({ startDate: new Date().toISOString().split('T')[0], endDate: new Date().toISOString().split('T')[0], title: "", description: "" })
+      setSelectedStandards(new Set())
       onOpenChange(false)
     }
   }
 
+  const handleStandardSelect = (acronym: string, checked: boolean) => {
+    const newSelected = new Set(selectedStandards)
+    if (checked) {
+      newSelected.add(acronym)
+    } else {
+      newSelected.delete(acronym)
+    }
+    setSelectedStandards(newSelected)
+  }
+
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle>선택된 표준문서들에 회의 생성</DialogTitle>
+          <DialogTitle>새 회의 생성</DialogTitle>
         </DialogHeader>
         <div className="space-y-4">
-          <div className="text-sm text-gray-600">
-            선택된 표준문서: {Array.from(selectedStandards).join(', ')} ({selectedStandards.size}개)
+          <div className="space-y-2">
+            <Label>표준문서 선택</Label>
+            {loading ? (
+              <div className="text-center py-4 text-gray-500">
+                표준문서를 불러오는 중...
+              </div>
+            ) : (
+              <div className="grid grid-cols-2 gap-2 max-h-40 overflow-y-auto border rounded p-2">
+                {standards.map((standard) => (
+                  <div key={standard.acronym} className="flex items-center space-x-2">
+                    <Checkbox
+                      id={standard.acronym}
+                      checked={selectedStandards.has(standard.acronym)}
+                      onCheckedChange={(checked) => handleStandardSelect(standard.acronym, checked as boolean)}
+                    />
+                    <Label htmlFor={standard.acronym} className="text-sm cursor-pointer">
+                      {standard.acronym}
+                    </Label>
+                  </div>
+                ))}
+              </div>
+            )}
+            <div className="text-sm text-gray-600">
+              선택된 표준문서: {selectedStandards.size}개
+            </div>
+          </div>
+          
+          <div className="space-y-2">
+            <Label htmlFor="startDate">회의 시작날짜</Label>
+            <Input
+              id="startDate"
+              type="date"
+              value={formData.startDate}
+              onChange={(e) => setFormData({ ...formData, startDate: e.target.value })}
+            />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="date">회의 날짜</Label>
+            <Label htmlFor="endDate">회의 종료날짜</Label>
             <Input
-              id="date"
+              id="endDate"
               type="date"
-              value={formData.date}
-              onChange={(e) => setFormData({ ...formData, date: e.target.value })}
+              value={formData.endDate}
+              onChange={(e) => setFormData({ ...formData, endDate: e.target.value })}
             />
           </div>
           <div className="space-y-2">
@@ -112,7 +185,7 @@ function MeetingCreateDialog({
             <Button 
               onClick={handleSubmit} 
               className="flex-1" 
-              disabled={!formData.date || !formData.title || selectedStandards.size === 0}
+              disabled={!formData.startDate || !formData.endDate || !formData.title || selectedStandards.size === 0}
             >
               회의 생성
             </Button>
@@ -192,7 +265,7 @@ function NewStandardDialog({
   )
 }
 
-export default function HomePage() {
+export default function Page() {
   const [standards, setStandards] = useState<Standard[]>([])
   const [auth, setAuth] = useState<AuthState>({
     isAuthenticated: false,
@@ -200,21 +273,225 @@ export default function HomePage() {
     user: null
   })
   const [settingsOpen, setSettingsOpen] = useState(false)
-  const [selectedStandards, setSelectedStandards] = useState<Set<string>>(new Set())
   const [uploadedProposals, setUploadedProposals] = useState<UploadedProposal[]>([])
   const [showMeetingCreateDialog, setShowMeetingCreateDialog] = useState(false)
+  const [showAgendaDialog, setShowAgendaDialog] = useState(false)
+  const [showMinutesDialog, setShowMinutesDialog] = useState(false)
+  const [documentGenerator, setDocumentGenerator] = useState<{
+    isOpen: boolean
+    type: 'agenda' | 'minutes'
+    content: string
+    title: string
+  }>({
+    isOpen: false,
+    type: 'agenda',
+    content: '',
+    title: ''
+  })
 
-  const handleLogin = (role: UserRole, password: string, username?: string): boolean => {
+  const getAllMeetingTitles = (): string[] => {
+    const existingStandardData = localStorage.getItem('standards')
+    if (!existingStandardData) return []
+    
+    try {
+      const allStandards = JSON.parse(existingStandardData)
+      const allTitles = new Set<string>()
+      
+      allStandards.forEach((standard: any) => {
+        if (Array.isArray(standard.meetings)) {
+          standard.meetings.forEach((meeting: any) => {
+            if (meeting.title && meeting.title.trim()) {
+              allTitles.add(meeting.title.trim())
+            }
+          })
+        }
+      })
+      
+      return Array.from(allTitles).sort()
+    } catch (error) {
+      console.error('회의 제목 수집 오류:', error)
+      return []
+    }
+  }
+
+  const handleGenerateAgenda = async (meetingTitle: string) => {
+    try {
+      const response = await fetch('/api/standards')
+      if (!response.ok) {
+        alert('표준문서 데이터를 조회할 수 없습니다.')
+        return
+      }
+      
+      const data = await response.json()
+      const allStandards = data.standards
+      
+      let agendaContent = `# ${meetingTitle} - 회의 Agenda\n\n`
+      agendaContent += `생성일: ${new Date().toLocaleDateString('ko-KR')}\n\n`
+      
+      // 모든 표준문서에서 해당 회의명과 일치하는 회의들 찾기
+      allStandards.forEach((standard: any) => {
+        if (!Array.isArray(standard.meetings)) return
+        
+        const targetMeeting = standard.meetings.find((m: any) => m.title === meetingTitle)
+        if (!targetMeeting) return
+        
+        agendaContent += `## ${standard.acronym} - ${standard.title}\n`
+        agendaContent += `### ${meetingTitle}\n`
+        if (targetMeeting.startDate && targetMeeting.endDate) {
+          agendaContent += `기간: ${new Date(targetMeeting.startDate).toLocaleDateString('ko-KR')} ~ ${new Date(targetMeeting.endDate).toLocaleDateString('ko-KR')}\n`
+        }
+        agendaContent += `\n`
+        
+        // 기존 베이스라인 문서
+        if (targetMeeting.previousDocument) {
+          agendaContent += `#### 기존 베이스라인 문서\n`
+          agendaContent += `- ${targetMeeting.previousDocument.name}\n\n`
+        }
+        
+        // 기고서 문서들
+        if (targetMeeting.proposals && targetMeeting.proposals.length > 0) {
+          agendaContent += `#### 기고서 문서들\n`
+          targetMeeting.proposals.forEach((proposal: any, index: number) => {
+            agendaContent += `${index + 1}. ${proposal.name}\n`
+            // 수정본들도 포함
+            if (targetMeeting.revisions && targetMeeting.revisions[proposal.id]) {
+              targetMeeting.revisions[proposal.id].forEach((revision: any, revIndex: number) => {
+                agendaContent += `   - 수정본 ${revIndex + 1}: ${revision.name}\n`
+              })
+            }
+          })
+          agendaContent += `\n`
+        } else {
+          agendaContent += `#### 기고서 문서들\n`
+          agendaContent += `이번 회의에는 기고서가 제출되지 않아 논의되지 않았습니다.\n\n`
+        }
+        
+        agendaContent += `---\n\n`
+      })
+      
+      // Agenda 파일 다운로드
+      const blob = new Blob([agendaContent], { type: 'text/plain;charset=utf-8' })
+      const url = URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = url
+      link.download = `${meetingTitle}_Agenda_${new Date().toISOString().split('T')[0]}.txt`
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+      URL.revokeObjectURL(url)
+      
+    } catch (error) {
+      console.error('Agenda 생성 오류:', error)
+      alert('Agenda 생성 중 오류가 발생했습니다.')
+    }
+  }
+
+  const handleGenerateMinutes = async (meetingTitle: string) => {
+    try {
+      const response = await fetch('/api/standards')
+      if (!response.ok) {
+        alert('표준문서 데이터를 조회할 수 없습니다.')
+        return
+      }
+      
+      const data = await response.json()
+      const allStandards = data.standards
+      
+      let minutesContent = `# ${meetingTitle} - 회의록\n\n`
+      minutesContent += `생성일: ${new Date().toLocaleDateString('ko-KR')}\n\n`
+      
+      // 모든 표준문서에서 해당 회의명과 일치하는 회의들 찾기
+      allStandards.forEach((standard: any) => {
+        if (!Array.isArray(standard.meetings)) return
+        
+        const targetMeeting = standard.meetings.find((m: any) => m.title === meetingTitle)
+        if (!targetMeeting) return
+        
+        minutesContent += `## ${standard.acronym} - ${standard.title}\n`
+        minutesContent += `### ${meetingTitle}\n`
+        if (targetMeeting.startDate && targetMeeting.endDate) {
+          minutesContent += `기간: ${new Date(targetMeeting.startDate).toLocaleDateString('ko-KR')} ~ ${new Date(targetMeeting.endDate).toLocaleDateString('ko-KR')}\n`
+        }
+        if (targetMeeting.description) {
+          minutesContent += `설명: ${targetMeeting.description}\n`
+        }
+        minutesContent += `\n`
+        
+        // 기존 베이스라인 문서
+        if (targetMeeting.previousDocument) {
+          minutesContent += `#### 기존 베이스라인 문서\n`
+          minutesContent += `- ${targetMeeting.previousDocument.name}\n\n`
+        }
+        
+        // 기고서 문서들과 논의 내용
+        if (targetMeeting.proposals && targetMeeting.proposals.length > 0) {
+          minutesContent += `#### 기고서 문서들 및 논의 내용\n`
+          targetMeeting.proposals.forEach((proposal: any, index: number) => {
+            minutesContent += `${index + 1}. ${proposal.name}\n`
+            
+            // 수정본들
+            if (targetMeeting.revisions && targetMeeting.revisions[proposal.id]) {
+              targetMeeting.revisions[proposal.id].forEach((revision: any, revIndex: number) => {
+                minutesContent += `   - 수정본 ${revIndex + 1}: ${revision.name}\n`
+              })
+            }
+            
+            // 메모 (논의 내용)
+            if (targetMeeting.memos && targetMeeting.memos[proposal.id]) {
+              minutesContent += `   ${targetMeeting.memos[proposal.id]}\n`
+            }
+            
+            minutesContent += `\n`
+          })
+        } else {
+          minutesContent += `#### 기고서 문서들 및 논의 내용\n`
+          minutesContent += `이번 회의에는 기고서가 제출되지 않아 논의되지 않았습니다.\n\n`
+        }
+        
+        // Output 문서
+        if (targetMeeting.resultDocument) {
+          minutesContent += `#### Output 문서\n`
+          minutesContent += `- ${targetMeeting.resultDocument.name}\n`
+          
+          // Output 수정본들
+          if (targetMeeting.resultRevisions && targetMeeting.resultRevisions.length > 0) {
+            targetMeeting.resultRevisions.forEach((revision: any, index: number) => {
+              minutesContent += `- 수정본 ${index + 1}: ${revision.name}\n`
+            })
+          }
+          minutesContent += `\n`
+        }
+        
+        minutesContent += `---\n\n`
+      })
+      
+      // 회의록 파일 다운로드
+      const blob = new Blob([minutesContent], { type: 'text/plain;charset=utf-8' })
+      const url = URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = url
+      link.download = `${meetingTitle}_회의록_${new Date().toISOString().split('T')[0]}.txt`
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+      URL.revokeObjectURL(url)
+      
+    } catch (error) {
+      console.error('회의록 생성 오류:', error)
+      alert('회의록 생성 중 오류가 발생했습니다.')
+    }
+  }
+  const handleLogin = (role: UserRole, password: string, username?: string) => {
     const chairPassword = localStorage.getItem('chairPassword') || 'chair'
     const contributorPassword = localStorage.getItem('contributorPassword') || 'cont'
     
-    const isValid = (role === 'chair' && password === chairPassword) || 
+    const isValid = (role === 'chair' && password === chairPassword) ||
                    (role === 'contributor' && password === contributorPassword)
     
     if (isValid) {
       const authState = {
         isAuthenticated: true,
-        role,
+        role: role as UserRole,
         user: username || role
       }
       setAuth(authState)
@@ -237,7 +514,11 @@ export default function HomePage() {
   }
 
   useEffect(() => {
-    setStandards(getStoredStandards())
+    const loadStandards = async () => {
+      const standardsData = await getStoredStandards()
+      setStandards(standardsData)
+    }
+    loadStandards()
     
     // 저장된 인증 정보 복원
     const savedAuth = localStorage.getItem('authState')
@@ -264,66 +545,54 @@ export default function HomePage() {
       const proposal = uploadedProposals[proposalIndex]
       if (!proposal) return
 
-      // 해당 표준문서의 마지막 회의 찾기
-      const existingStandardData = localStorage.getItem('standards')
-      const allStandards = existingStandardData ? JSON.parse(existingStandardData) : []
-      const standardIndex = allStandards.findIndex((s: any) => s.acronym === standardAcronym)
+      // 서버에서 표준문서 데이터 가져오기
+      const response = await fetch('/api/standards')
+      if (!response.ok) {
+        alert('표준문서 정보를 가져올 수 없습니다.')
+        return
+      }
       
-      if (standardIndex < 0) {
+      const data = await response.json()
+      const standard = data.standards.find((s: any) => s.acronym === standardAcronym)
+      
+      if (!standard) {
         alert('표준문서를 찾을 수 없습니다.')
         return
       }
 
-      const standard = allStandards[standardIndex]
       if (!Array.isArray(standard.meetings) || standard.meetings.length === 0) {
         alert('해당 표준문서에 회의가 없습니다. 먼저 회의를 생성해주세요.')
         return
       }
 
-      // 마지막 회의 가져오기
-      const lastMeeting = standard.meetings[standard.meetings.length - 1]
+      // 현재 활성 회의 찾기 (메인 페이지에서는 마지막 회의를 기본으로 사용)
+      const targetMeeting = standard.meetings[standard.meetings.length - 1]
+      console.log('업로드 대상 회의:', targetMeeting) // 디버깅용
       
       // 파일 업로드 API 호출
       const formData = new FormData()
       formData.append('file', proposal.file)
       formData.append('acronym', standardAcronym)
-      formData.append('meetingDate', lastMeeting.date)
+      formData.append('meetingId', targetMeeting.id)
       formData.append('type', 'proposal')
 
-      const response = await fetch('/api/upload', {
+      const uploadResponse = await fetch('/api/proposal', {
         method: 'POST',
         body: formData
       })
 
-      if (!response.ok) {
-        const result = await response.json()
+      if (!uploadResponse.ok) {
+        const result = await uploadResponse.json()
         alert(`업로드 실패: ${result.error}`)
         return
       }
 
-      const result = await response.json()
+      const result = await uploadResponse.json()
 
-      // 새 기고서 문서 생성
-      const newDocument = {
-        id: `doc-${Date.now()}`,
-        name: result.originalName,
-        type: "proposal",
-        uploadDate: new Date().toISOString(),
-        connections: [],
-        status: 'pending',
-        filePath: result.filePath,
-        uploader: auth.user || 'unknown'
-      }
-
-      // 마지막 회의에 기고서 추가
-      lastMeeting.proposals.push(newDocument)
-      allStandards[standardIndex] = standard
-
-      // localStorage 업데이트
-      localStorage.setItem('standards', JSON.stringify(allStandards))
-
-      // 업로드된 기고서 목록에서 제거
+      // 업로드 성공시 업로드된 기고서 목록에서 제거
       setUploadedProposals(prev => prev.filter((_, index) => index !== proposalIndex))
+      
+      alert('기고서가 업로드되었습니다.')
 
     } catch (error) {
       console.error('기고서 추가 오류:', error)
@@ -342,37 +611,28 @@ export default function HomePage() {
   }
 
   const handleCreateStandard = async (standardData: { acronym: string; title: string }) => {
-    // 실제 저장된 표준문서 데이터 확인
-    const existingStandardData = localStorage.getItem('standards')
-    const allStandards = existingStandardData ? JSON.parse(existingStandardData) : []
-    
-    // 새 표준문서 데이터 생성
-    const newStandardData = {
-      acronym: standardData.acronym,
-      title: standardData.title,
-      meetings: [] // 빈 배열로 초기화
-    }
-    
-    // 실제 데이터 저장 (배열 형태)
-    const updatedStandardsData = [...allStandards, newStandardData]
-    localStorage.setItem('standards', JSON.stringify(updatedStandardsData))
-    
-    // 메인 페이지 표시용 데이터 (숫자 형태)
-    const newStandard: Standard = {
-      acronym: standardData.acronym,
-      title: standardData.title,
-      meetings: 0,
-      lastUpdate: new Date().toISOString().split('T')[0],
-    }
-
-    // 디렉토리 생성
-    const success = await createDataDirectory(standardData.acronym)
-    if (success) {
-      const updatedStandards = [...standards, newStandard]
+    try {
+      const response = await fetch('/api/standards', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(standardData)
+      })
+      
+      if (!response.ok) {
+        const errorData = await response.json()
+        alert(`표준문서 생성 실패: ${errorData.error}`)
+        return
+      }
+      
+      // 성공시 목록 새로고침
+      const updatedStandards = await getStoredStandards()
       setStandards(updatedStandards)
-      console.log('새 표준문서 등록 완료:', newStandard)
-    } else {
-      console.error('표준문서 등록 실패: 디렉토리 생성 오류')
+      
+    } catch (error) {
+      console.error('표준문서 생성 오류:', error)
+      alert('표준문서 생성 중 오류가 발생했습니다.')
     }
   }
 
@@ -381,55 +641,25 @@ export default function HomePage() {
     return <LoginScreen onLogin={handleLogin} />
   }
 
-  const saveStandards = (newStandards: Standard[]) => {
-    setStandards(newStandards)
-    localStorage.setItem('standards', JSON.stringify(newStandards))
-  }
-
-  const createDataDirectory = async (acronym: string) => {
-    try {
-      // 표준문서별 데이터 디렉토리 생성
-      const dataPath = `/Users/whyun/workspace/Xtandaz/data/${acronym}`
-      console.log(`데이터 디렉토리 생성: ${dataPath}`)
-      
-      // 실제 API 호출이나 서버 요청으로 디렉토리 생성
-      // TODO: 서버 API 구현 후 실제 디렉토리 생성 로직 추가
-      
-      return true
-    } catch (error) {
-      console.error('디렉토리 생성 실패:', error)
-      return false
-    }
-  }
-
   const handleDeleteStandard = async (acronym: string) => {
     if (!confirm(`정말 "${acronym}" 표준문서를 삭제하시겠습니까? 모든 데이터가 삭제됩니다.`)) {
       return
     }
 
     try {
-      // 서버에서 데이터 폴더 삭제
-      const response = await fetch(`/api/delete?path=${encodeURIComponent(`data/${acronym}`)}`, {
+      const response = await fetch(`/api/standards/delete?acronym=${encodeURIComponent(acronym)}`, {
         method: 'DELETE'
       })
       
       if (!response.ok) {
-        const result = await response.json()
-        alert(`삭제 실패: ${result.error}`)
+        const errorData = await response.json()
+        alert(`삭제 실패: ${errorData.error}`)
         return
       }
 
-      // localStorage에서 해당 표준문서 삭제
-      const existingStandardData = localStorage.getItem('standards')
-      if (existingStandardData) {
-        const allStandards = JSON.parse(existingStandardData)
-        const updatedStandards = allStandards.filter((s: any) => s.acronym !== acronym)
-        localStorage.setItem('standards', JSON.stringify(updatedStandards))
-      }
-
-      // 화면에서 해당 표준문서 제거
-      const updatedStandards = standards.filter(s => s.acronym !== acronym)
-      saveStandards(updatedStandards)
+      // 성공시 목록 새로고침
+      const updatedStandards = await getStoredStandards()
+      setStandards(updatedStandards)
       
     } catch (error) {
       console.error('표준문서 삭제 오류:', error)
@@ -437,66 +667,35 @@ export default function HomePage() {
     }
   }
 
-  const handleCreateMeetings = async (meetingData: { date: string; title: string; description?: string }) => {
+  const handleCreateMeetings = async (meetingData: { startDate: string; endDate: string; title: string; description?: string }, selectedStandardsList: string[]) => {
     try {
-      // 표준문서 데이터 로드
-      const existingStandardData = localStorage.getItem('standards')
-      const allStandards = existingStandardData ? JSON.parse(existingStandardData) : []
+      const response = await fetch('/api/meetings', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          standardAcronyms: selectedStandardsList,
+          startDate: meetingData.startDate,
+          endDate: meetingData.endDate,
+          title: meetingData.title,
+          description: meetingData.description
+        })
+      })
       
-      // 선택된 각 표준문서에 대해 회의 추가
-      for (const acronym of selectedStandards) {
-        const standardIndex = allStandards.findIndex((s: any) => s.acronym === acronym)
-        
-        if (standardIndex >= 0) {
-          const standard = allStandards[standardIndex]
-          
-          // meetings가 배열이 아니면 빈 배열로 초기화
-          if (!Array.isArray(standard.meetings)) {
-            standard.meetings = []
-          }
-          
-          const newMeeting = {
-            id: `meeting-${Date.now()}-${acronym}`,
-            date: meetingData.date,
-            title: meetingData.title,
-            description: meetingData.description,
-            proposals: [],
-            revisions: {},
-            resultRevisions: [],
-            isCompleted: false,
-            memos: {}
-          }
-          
-          // 이전 회의가 있고 완료된 경우, 마지막 회의의 Output Document를 Base Document로 설정
-          const completedMeetings = standard.meetings.filter((m: any) => m.isCompleted)
-          if (completedMeetings.length > 0) {
-            const lastCompletedMeeting = completedMeetings[completedMeetings.length - 1]
-            if (lastCompletedMeeting.resultDocument) {
-              const lastRevision = lastCompletedMeeting.resultRevisions?.length > 0 
-                ? lastCompletedMeeting.resultRevisions[lastCompletedMeeting.resultRevisions.length - 1]
-                : lastCompletedMeeting.resultDocument
-              
-              newMeeting.previousDocument = {
-                ...lastRevision,
-                id: `base-${Date.now()}-${acronym}`,
-                type: "previous"
-              }
-            }
-          }
-          
-          standard.meetings.push(newMeeting)
-          allStandards[standardIndex] = standard
-        }
+      if (!response.ok) {
+        const errorData = await response.json()
+        alert(`회의 생성 실패: ${errorData.error}`)
+        return
       }
       
-      // localStorage 업데이트
-      localStorage.setItem('standards', JSON.stringify(allStandards))
+      const result = await response.json()
       
-      // 메인 페이지 상태 업데이트
-      setStandards(getStoredStandards())
-      setSelectedStandards(new Set())
+      // 성공시 목록 새로고침
+      const updatedStandards = await getStoredStandards()
+      setStandards(updatedStandards)
       
-      alert(`${selectedStandards.size}개 표준문서에 회의가 생성되었습니다.`)
+      alert(result.message)
       
     } catch (error) {
       console.error('회의 생성 오류:', error)
@@ -527,16 +726,38 @@ export default function HomePage() {
                 </span>
                 로 로그인됨
               </div>
-              {selectedStandards.size > 0 && (
-                <Button
-                  variant="default"
-                  size="sm"
-                  onClick={() => setShowMeetingCreateDialog(true)}
-                  className="gap-2 bg-green-600 hover:bg-green-700"
-                >
-                  <Plus className="h-4 w-4" />
-                  회의 생성 ({selectedStandards.size})
-                </Button>
+              {auth.role === 'chair' && (
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="default"
+                    size="sm"
+                    onClick={() => setShowMeetingCreateDialog(true)}
+                    className="gap-2 bg-green-600 hover:bg-green-700"
+                  >
+                    <Plus className="h-4 w-4" />
+                    회의 생성
+                  </Button>
+                  
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setShowAgendaDialog(true)}
+                    className="gap-2"
+                  >
+                    <FileStack className="h-4 w-4" />
+                    Agenda 생성
+                  </Button>
+                  
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setShowMinutesDialog(true)}
+                    className="gap-2"
+                  >
+                    <ClipboardList className="h-4 w-4" />
+                    회의록 생성
+                  </Button>
+                </div>
               )}
               {auth.role === 'chair' && (
                 <Button
@@ -565,7 +786,7 @@ export default function HomePage() {
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
           {auth.role === 'chair' && <NewStandardDialog onCreateStandard={handleCreateStandard} />}
           
-          {standards.map((standard) => (
+          {Array.isArray(standards) ? standards.map((standard) => (
             <div 
               key={standard.acronym} 
               className="relative group"
@@ -585,14 +806,6 @@ export default function HomePage() {
                 e.currentTarget.classList.remove('ring-2', 'ring-blue-400', 'ring-offset-2')
               }}
             >
-              {/* 체크박스 - 우측 상단 */}
-              <div className="absolute top-2 right-2 z-10">
-                <Checkbox
-                  checked={selectedStandards.has(standard.acronym)}
-                  onCheckedChange={(checked) => handleStandardSelect(standard.acronym, checked as boolean)}
-                  className="bg-white border-2 border-gray-300 data-[state=checked]:bg-blue-600 data-[state=checked]:border-blue-600"
-                />
-              </div>
               
               <Link href={`/${standard.acronym}`}>
                 <Card className="hover:shadow-lg transition-all duration-300 hover:scale-105 bg-gradient-to-br from-white to-gray-50 border-0 shadow-md cursor-pointer h-32">
@@ -633,7 +846,11 @@ export default function HomePage() {
                 </button>
               )}
             </div>
-          ))}
+          )) : (
+            <div className="text-center py-8 text-gray-500">
+              표준문서를 불러오는 중...
+            </div>
+          )}
         </div>
 
         {/* 기고서 업로드 영역 */}
@@ -719,13 +936,22 @@ export default function HomePage() {
       )}
 
       <MeetingCreateDialog
-        selectedStandards={selectedStandards}
         onCreateMeetings={handleCreateMeetings}
         isOpen={showMeetingCreateDialog}
         onOpenChange={setShowMeetingCreateDialog}
       />
+
+      <AgendaSelectDialog
+        isOpen={showAgendaDialog}
+        onOpenChange={setShowAgendaDialog}
+        onGenerateAgenda={handleGenerateAgenda}
+      />
+
+      <MinutesSelectDialog
+        isOpen={showMinutesDialog}
+        onOpenChange={setShowMinutesDialog}
+        onGenerateMinutes={handleGenerateMinutes}
+      />
     </div>
   )
 }
-
-// %%%%%LAST%%%%%

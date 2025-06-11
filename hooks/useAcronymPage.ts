@@ -91,9 +91,26 @@ export function useAcronymPage(acronym: string) {
     }
   }, [standard?.acronym, activeMeetingId])
 
-  const updateStandard = (updatedStandard: Standard) => {
+  const updateStandard = async (updatedStandard: Standard) => {
     setStandard(updatedStandard)
     saveStandardData(updatedStandard)
+    
+    // 서버에도 전체 표준문서 데이터 저장
+    try {
+      const response = await fetch(`/api/standards/${updatedStandard.acronym}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(updatedStandard),
+      })
+      
+      if (!response.ok) {
+        console.error('서버 저장 실패:', response.statusText)
+      }
+    } catch (error) {
+      console.error('서버 저장 오류:', error)
+    }
   }
 
   // 회의 수정 핸들러

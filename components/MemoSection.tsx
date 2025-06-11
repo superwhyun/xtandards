@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect, useRef } from "react";
 import { Document } from "@/types/standard";
 
 interface MemoSectionProps {
@@ -7,6 +7,7 @@ interface MemoSectionProps {
   memo: string;
   onMemoChange: (value: string) => void;
   onMemoBlur: (value: string) => void;
+  onMemoToggle: () => void;
 }
 
 export default function MemoSection({
@@ -14,25 +15,54 @@ export default function MemoSection({
   isExpanded,
   memo,
   onMemoChange,
-  onMemoBlur
+  onMemoBlur,
+  onMemoToggle
 }: MemoSectionProps) {
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const originalValueRef = useRef(memo);
+  const currentValueRef = useRef(memo);
+
+  // 메모창이 열릴 때 원래 값 저장하고 포커스
+  useEffect(() => {
+    if (isExpanded) {
+      originalValueRef.current = memo;
+      currentValueRef.current = memo;
+      setTimeout(() => {
+        textareaRef.current?.focus();
+      }, 50);
+    }
+  }, [isExpanded]);
+
+  const handleChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    currentValueRef.current = e.target.value;
+    onMemoChange(e.target.value);
+  };
+
+  const handleBlur = () => {
+    // 실제로 변경된 경우에만 저장
+    if (currentValueRef.current !== originalValueRef.current) {
+      onMemoBlur(currentValueRef.current);
+    }
+    // 메모창 닫기
+    onMemoToggle();
+  };
+
   if (!isExpanded) return null;
 
   return (
-    <div className="memo-slide-container expanding">
-      <div className="mt-4 border-t pt-4">
-        <label className="block text-sm font-medium text-gray-700 mb-2">
-          메모 (기고서: {proposal.name})
-        </label>
-        <textarea
-          className="w-full p-3 border border-gray-300 rounded-lg resize-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-          rows={3}
-          placeholder="이 기고서에 대한 메모를 입력하세요..."
-          value={memo}
-          onChange={(e) => onMemoChange(e.target.value)}
-          onBlur={(e) => onMemoBlur(e.target.value)}
-        />
-      </div>
+    <div className="mt-4 border-t pt-4">
+      <label className="block text-sm font-medium text-gray-700 mb-2">
+        메모 (기고서: {proposal.name})
+      </label>
+      <textarea
+        ref={textareaRef}
+        className="w-full p-3 border border-gray-300 rounded-lg resize-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+        rows={3}
+        placeholder="이 기고서에 대한 메모를 입력하세요..."
+        defaultValue={memo}
+        onChange={handleChange}
+        onBlur={handleBlur}
+      />
     </div>
   );
 }

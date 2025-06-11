@@ -6,6 +6,24 @@ body {
   font-family: Arial, Helvetica, sans-serif;
 }
 
+/* 메모 슬라이딩 애니메이션 */
+.memo-slide-container {
+  transition: max-height 0.3s ease-in-out, opacity 0.3s ease-in-out;
+  overflow: hidden;
+}
+
+.memo-slide-container.collapsed {
+  max-height: 0;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.memo-slide-container.expanding {
+  max-height: 300px;
+  opacity: 1;
+  pointer-events: auto;
+}
+
 @layer utilities {
   .text-balance {
     text-wrap: balance;

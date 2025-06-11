@@ -1,171 +1,139 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { readFile, writeFile, mkdir } from 'fs/promises'
-import { existsSync } from 'fs'
+import fs from 'fs'
 import path from 'path'
 
-interface Meeting {
-  id: string
-  date: string
-  title: string
-  description?: string
-  isCompleted: boolean
-  createdAt: string
-}
+const STANDARDS_FILE = path.join(process.cwd(), 'data', 'standards.json')
 
 // 회의 생성
 export async function POST(request: NextRequest) {
   try {
-    const { acronym, date, title, description } = await request.json()
-
-    if (!acronym || !date || !title) {
-      return NextResponse.json(
-        { error: '필수 파라미터가 누락되었습니다' },
-        { status: 400 }
-      )
+    const { standardAcronyms, startDate, endDate, title, description } = await request.json()
+    
+    if (!standardAcronyms || !Array.isArray(standardAcronyms) || standardAcronyms.length === 0) {
+      return NextResponse.json({ error: '표준문서를 선택해주세요' }, { status: 400 })
     }
-
-    const standardDir = path.join(process.cwd(), 'data', acronym)
-    const meetingsFile = path.join(standardDir, 'meetings.json')
-
-    // 디렉토리 생성
-    if (!existsSync(standardDir)) {
-      await mkdir(standardDir, { recursive: true })
+    
+    if (!startDate || !endDate || !title) {
+      return NextResponse.json({ error: '필수 필드가 누락되었습니다' }, { status: 400 })
     }
-
-    // 기존 회의 목록 로드
-    let meetings: Meeting[] = []
-    if (existsSync(meetingsFile)) {
-      const data = await readFile(meetingsFile, 'utf8')
-      meetings = JSON.parse(data)
+    
+    // 기존 데이터 읽기
+    if (!fs.existsSync(STANDARDS_FILE)) {
+      return NextResponse.json({ error: '표준문서 데이터를 찾을 수 없습니다' }, { status: 404 })
     }
+    
+    const data = fs.readFileSync(STANDARDS_FILE, 'utf8')
+    const standards = JSON.parse(data)
+    
+    // 각 표준문서에 회의 추가
+    let createdCount = 0
+    
+    standardAcronyms.forEach((acronym: string) => {
+      const standardIndex = standards.standards.findIndex((s: any) => s.acronym === acronym)
+      
+      if (standardIndex >= 0) {
+        const standard = standards.standards[standardIndex]
+        
+        // meetings 배열 초기화
+        if (!Array.isArray(standard.meetings)) {
+          standard.meetings = []
+        }
+        
+        // 중복 ID 체크 및 유니크 ID 생성
+        let uniqueId = title
+        let counter = 1
+        while (standard.meetings.some((m: any) => m.id === uniqueId)) {
+          uniqueId = `${title} (${counter})`
+          counter++
+        }
+        
+        const newMeeting = {
+          id: uniqueId,
+          title,
+          startDate,
+          endDate,
+          description: description || '',
+          isCompleted: false,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString()
+        }
+        
+        standard.meetings.push(newMeeting)
+        standard.updatedAt = new Date().toISOString()
+        standards.standards[standardIndex] = standard
+        createdCount++
+        
+        // 회의 폴더 생성
+        const meetingDir = path.join(process.cwd(), 'data', acronym, title)
+        if (!fs.existsSync(meetingDir)) {
+          fs.mkdirSync(meetingDir, { recursive: true })
+        }
 
-    // 새 회의 생성
-    const newMeeting: Meeting = {
-      id: `meeting-${Date.now()}`,
-      date,
-      title,
-      description,
-      isCompleted: false,
-      createdAt: new Date().toISOString()
-    }
+        // meeting.json 생성
+        const meetingJsonPath = path.join(meetingDir, 'meeting.json')
+        const meetingData = {
+          id: uniqueId,
+          title,
+          startDate,
+          endDate,
+          description: description || '',
+          isCompleted: false,
+          proposals: [],
+          revisions: {},
+          resultRevisions: [],
+          previousDocument: null,
+          resultDocument: null,
+          memos: {},
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString()
+        }
 
-    meetings.push(newMeeting)
-
-    // 파일 저장
-    await writeFile(meetingsFile, JSON.stringify(meetings, null, 2))
-
-    return NextResponse.json({
-      success: true,
-      meeting: newMeeting
+        fs.writeFileSync(meetingJsonPath, JSON.stringify(meetingData, null, 2))
+      }
     })
-
+    
+    // 파일에 저장
+    fs.writeFileSync(STANDARDS_FILE, JSON.stringify(standards, null, 2))
+    
+    return NextResponse.json({ 
+      message: `${createdCount}개 표준문서에 회의가 생성되었습니다`,
+      createdCount
+    })
+    
   } catch (error) {
     console.error('회의 생성 오류:', error)
-    return NextResponse.json(
-      { error: '회의 생성 중 오류가 발생했습니다' },
-      { status: 500 }
-    )
+    return NextResponse.json({ error: '회의 생성 실패' }, { status: 500 })
   }
 }
 
-// 회의 업데이트 (완료 상태 등)
-export async function PUT(request: NextRequest) {
+// 전체 회의명 목록 조회
+export async function GET() {
   try {
-    const { acronym, meetingId, isCompleted } = await request.json()
-
-    if (!acronym || !meetingId) {
-      return NextResponse.json(
-        { error: '필수 파라미터가 누락되었습니다' },
-        { status: 400 }
-      )
+    if (!fs.existsSync(STANDARDS_FILE)) {
+      return NextResponse.json({ meetingTitles: [] })
     }
-
-    const meetingsFile = path.join(process.cwd(), 'data', acronym, 'meetings.json')
-
-    if (!existsSync(meetingsFile)) {
-      return NextResponse.json(
-        { error: '회의 파일을 찾을 수 없습니다' },
-        { status: 404 }
-      )
-    }
-
-    // 회의 목록 로드
-    const data = await readFile(meetingsFile, 'utf8')
-    let meetings: Meeting[] = JSON.parse(data)
-
-    // 해당 회의 찾기 및 업데이트
-    const meetingIndex = meetings.findIndex(m => m.id === meetingId)
-    if (meetingIndex === -1) {
-      return NextResponse.json(
-        { error: '회의를 찾을 수 없습니다' },
-        { status: 404 }
-      )
-    }
-
-    if (isCompleted !== undefined) {
-      meetings[meetingIndex].isCompleted = isCompleted
-    }
-
-    // 파일 저장
-    await writeFile(meetingsFile, JSON.stringify(meetings, null, 2))
-
-    return NextResponse.json({
-      success: true,
-      meeting: meetings[meetingIndex]
+    
+    const data = fs.readFileSync(STANDARDS_FILE, 'utf8')
+    const standards = JSON.parse(data)
+    
+    const titles = new Set<string>()
+    
+    standards.standards.forEach((standard: any) => {
+      if (Array.isArray(standard.meetings)) {
+        standard.meetings.forEach((meeting: any) => {
+          if (meeting.title && meeting.title.trim()) {
+            titles.add(meeting.title.trim())
+          }
+        })
+      }
     })
-
-  } catch (error) {
-    console.error('회의 업데이트 오류:', error)
-    return NextResponse.json(
-      { error: '회의 업데이트 중 오류가 발생했습니다' },
-      { status: 500 }
-    )
-  }
-}
-
-// 회의 삭제
-export async function DELETE(request: NextRequest) {
-  try {
-    const { searchParams } = new URL(request.url)
-    const acronym = searchParams.get('acronym')
-    const meetingId = searchParams.get('meetingId')
-
-    if (!acronym || !meetingId) {
-      return NextResponse.json(
-        { error: '필수 파라미터가 누락되었습니다' },
-        { status: 400 }
-      )
-    }
-
-    const meetingsFile = path.join(process.cwd(), 'data', acronym, 'meetings.json')
-
-    if (!existsSync(meetingsFile)) {
-      return NextResponse.json(
-        { error: '회의 파일을 찾을 수 없습니다' },
-        { status: 404 }
-      )
-    }
-
-    // 회의 목록 로드
-    const data = await readFile(meetingsFile, 'utf8')
-    let meetings: Meeting[] = JSON.parse(data)
-
-    // 해당 회의 제거
-    meetings = meetings.filter(m => m.id !== meetingId)
-
-    // 파일 저장
-    await writeFile(meetingsFile, JSON.stringify(meetings, null, 2))
-
-    return NextResponse.json({
-      success: true,
-      message: '회의가 삭제되었습니다'
+    
+    return NextResponse.json({ 
+      meetingTitles: Array.from(titles).sort() 
     })
-
+    
   } catch (error) {
-    console.error('회의 삭제 오류:', error)
-    return NextResponse.json(
-      { error: '회의 삭제 중 오류가 발생했습니다' },
-      { status: 500 }
-    )
+    console.error('회의명 조회 오류:', error)
+    return NextResponse.json({ error: '회의명 조회 실패' }, { status: 500 })
   }
 }

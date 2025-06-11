@@ -1,100 +1,112 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { writeFile, readFile, mkdir } from 'fs/promises'
-import { existsSync } from 'fs'
+import fs from 'fs'
 import path from 'path'
 
-// 메모 저장
-export async function POST(request: NextRequest) {
-  try {
-    const { acronym, meetingDate, proposalId, proposalName, memo } = await request.json()
-
-    if (!acronym || !meetingDate || !proposalId || !proposalName) {
-      return NextResponse.json(
-        { error: '필수 파라미터가 누락되었습니다' },
-        { status: 400 }
-      )
-    }
-
-    // C 폴더 경로
-    const cDir = path.join(process.cwd(), 'data', acronym, meetingDate, 'C')
-    if (!existsSync(cDir)) {
-      await mkdir(cDir, { recursive: true })
-    }
-
-    // 메모 파일 경로 (기고서 이름 기반)
-    const baseName = path.parse(proposalName).name
-    const memoFilePath = path.join(cDir, `${baseName}.json`)
-
-    // 메모 데이터 구조
-    const memoData = {
-      proposalId,
-      proposalName,
-      memo: memo || '',
-      lastUpdated: new Date().toISOString()
-    }
-
-    // 메모 파일 저장
-    await writeFile(memoFilePath, JSON.stringify(memoData, null, 2))
-
-    return NextResponse.json({
-      success: true,
-      message: '메모가 저장되었습니다'
-    })
-
-  } catch (error) {
-    console.error('메모 저장 오류:', error)
-    return NextResponse.json(
-      { error: '메모 저장 중 오류가 발생했습니다' },
-      { status: 500 }
-    )
-  }
-}
+const STANDARDS_FILE = path.join(process.cwd(), 'data', 'standards.json')
 
 // 메모 조회
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url)
     const acronym = searchParams.get('acronym')
-    const meetingDate = searchParams.get('meetingDate')
-
-    if (!acronym || !meetingDate) {
-      return NextResponse.json(
-        { error: '필수 파라미터가 누락되었습니다' },
-        { status: 400 }
-      )
-    }
-
-    // C 폴더 경로
-    const cDir = path.join(process.cwd(), 'data', acronym, meetingDate, 'C')
+    const meetingId = searchParams.get('meetingId')
     
-    if (!existsSync(cDir)) {
+    if (!acronym || !meetingId) {
+      return NextResponse.json({ error: '필수 파라미터가 누락되었습니다' }, { status: 400 })
+    }
+    
+    // standards.json에서 회의 제목 찾기
+    if (!fs.existsSync(STANDARDS_FILE)) {
       return NextResponse.json({ memos: {} })
     }
-
-    // C 폴더에서 .json 파일들 찾기
-    const fs = require('fs')
-    const files = fs.readdirSync(cDir).filter((file: string) => file.endsWith('.json'))
     
-    const memos: { [key: string]: string } = {}
+    const data = fs.readFileSync(STANDARDS_FILE, 'utf8')
+    const standards = JSON.parse(data)
     
-    for (const file of files) {
-      try {
-        const filePath = path.join(cDir, file)
-        const memoContent = await readFile(filePath, 'utf8')
-        const memoData = JSON.parse(memoContent)
-        memos[memoData.proposalId] = memoData.memo
-      } catch (error) {
-        console.error(`메모 파일 읽기 오류 (${file}):`, error)
-      }
+    const standard = standards.standards.find((s: any) => s.acronym === acronym)
+    if (!standard) {
+      return NextResponse.json({ memos: {} })
     }
-
-    return NextResponse.json({ memos })
-
+    
+    const meeting = standard.meetings.find((m: any) => m.id === meetingId)
+    if (!meeting) {
+      return NextResponse.json({ memos: {} })
+    }
+    
+    // meeting.json에서 메모 조회
+    const meetingJsonPath = path.join(process.cwd(), 'data', acronym, meeting.title, 'meeting.json')
+    if (!fs.existsSync(meetingJsonPath)) {
+      return NextResponse.json({ memos: {} })
+    }
+    
+    const meetingData = JSON.parse(fs.readFileSync(meetingJsonPath, 'utf8'))
+    
+    return NextResponse.json({ 
+      memos: meetingData.memos || {}
+    })
+    
   } catch (error) {
     console.error('메모 조회 오류:', error)
-    return NextResponse.json(
-      { error: '메모 조회 중 오류가 발생했습니다' },
-      { status: 500 }
-    )
+    return NextResponse.json({ error: '메모 조회 실패' }, { status: 500 })
   }
 }
+
+// 메모 업데이트
+export async function POST(request: NextRequest) {
+  try {
+    const { acronym, meetingId, proposalId, memo } = await request.json()
+    
+    if (!acronym || !meetingId || !proposalId) {
+      return NextResponse.json({ error: '필수 파라미터가 누락되었습니다' }, { status: 400 })
+    }
+    
+    // standards.json에서 회의 제목 찾기
+    if (!fs.existsSync(STANDARDS_FILE)) {
+      return NextResponse.json({ error: '표준문서 데이터를 찾을 수 없습니다' }, { status: 404 })
+    }
+    
+    const data = fs.readFileSync(STANDARDS_FILE, 'utf8')
+    const standards = JSON.parse(data)
+    
+    const standard = standards.standards.find((s: any) => s.acronym === acronym)
+    if (!standard) {
+      return NextResponse.json({ error: '표준문서를 찾을 수 없습니다' }, { status: 404 })
+    }
+    
+    const meeting = standard.meetings.find((m: any) => m.id === meetingId)
+    if (!meeting) {
+      return NextResponse.json({ error: '회의를 찾을 수 없습니다' }, { status: 404 })
+    }
+    
+    // meeting.json 업데이트
+    const meetingJsonPath = path.join(process.cwd(), 'data', acronym, meeting.title, 'meeting.json')
+    let meetingData: any = {}
+    
+    if (fs.existsSync(meetingJsonPath)) {
+      meetingData = JSON.parse(fs.readFileSync(meetingJsonPath, 'utf8'))
+    } else {
+      return NextResponse.json({ error: '회의 데이터를 찾을 수 없습니다' }, { status: 404 })
+    }
+    
+    // 메모 업데이트
+    if (!meetingData.memos) {
+      meetingData.memos = {}
+    }
+    
+    meetingData.memos[proposalId] = memo
+    meetingData.updatedAt = new Date().toISOString()
+    
+    // meeting.json 저장
+    fs.writeFileSync(meetingJsonPath, JSON.stringify(meetingData, null, 2))
+    
+    return NextResponse.json({ 
+      message: '메모가 저장되었습니다'
+    })
+    
+  } catch (error) {
+    console.error('메모 저장 오류:', error)
+    return NextResponse.json({ error: '메모 저장 실패' }, { status: 500 })
+  }
+}
+
+// %%%%%LAST%%%%%

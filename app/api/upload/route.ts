@@ -1,23 +1,54 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { writeFile, mkdir } from 'fs/promises'
-import { existsSync } from 'fs'
+import { existsSync, readFileSync } from 'fs'
 import path from 'path'
+
+const STANDARDS_FILE = path.join(process.cwd(), 'data', 'standards.json')
 
 export async function POST(request: NextRequest) {
   try {
     const formData = await request.formData()
     const file = formData.get('file') as File
     const acronym = formData.get('acronym') as string
-    const meetingDate = formData.get('meetingDate') as string  // meetingId 대신 meetingDate 사용
+    const meetingId = formData.get('meetingId') as string
     const type = formData.get('type') as string
     const proposalId = formData.get('proposalId') as string | null
 
-    if (!file || !acronym || !meetingDate || !type) {
+    if (!file || !acronym || !meetingId || !type) {
       return NextResponse.json(
         { error: '필수 파라미터가 누락되었습니다' },
         { status: 400 }
       )
     }
+
+    // meetingId로 회의 타이틀 찾기
+    if (!existsSync(STANDARDS_FILE)) {
+      return NextResponse.json(
+        { error: '표준문서 데이터를 찾을 수 없습니다' },
+        { status: 404 }
+      )
+    }
+
+    const data = readFileSync(STANDARDS_FILE, 'utf8')
+    const standards = JSON.parse(data)
+    const standard = standards.standards.find((s: any) => s.acronym === acronym)
+    
+    if (!standard) {
+      return NextResponse.json(
+        { error: '표준문서를 찾을 수 없습니다' },
+        { status: 404 }
+      )
+    }
+
+    const meeting = standard.meetings.find((m: any) => m.id === meetingId)
+    if (!meeting) {
+      return NextResponse.json(
+        { error: '회의를 찾을 수 없습니다' },
+        { status: 404 }
+      )
+    }
+
+    const meetingTitle = meeting.title
 
     // 파일 확장자 검증
     const allowedExtensions = ['.pdf', '.doc', '.docx', '.txt']
@@ -37,22 +68,22 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // 저장 디렉토리 생성 (날짜 기반)
+    // 저장 디렉토리 생성 (타이틀 기반)
     const timestamp = Date.now() // timestamp 변수 추가
     let uploadDir: string;
     let fileName: string;
     
     if (type === 'result' || type === 'result-revision') {
       // Output Document는 OD 폴더에
-      uploadDir = path.join(process.cwd(), 'data', acronym, meetingDate, 'OD')
+      uploadDir = path.join(process.cwd(), 'data', acronym, meetingTitle, 'OD')
       fileName = type === 'result' ? `output_${timestamp}_${file.name}` : `output_rev_${timestamp}_${file.name}`
     } else if (type === 'base') {
       // Base Document는 루트에 (실제로는 저장하지 않지만 호환성을 위해)
-      uploadDir = path.join(process.cwd(), 'data', acronym, meetingDate)
+      uploadDir = path.join(process.cwd(), 'data', acronym, meetingTitle)
       fileName = `base_${timestamp}_${file.name}`
     } else {
       // 기고서와 수정본은 C 폴더에
-      uploadDir = path.join(process.cwd(), 'data', acronym, meetingDate, 'C')
+      uploadDir = path.join(process.cwd(), 'data', acronym, meetingTitle, 'C')
       fileName = type === 'proposal' ? `${timestamp}_${file.name}` : `${type}_${timestamp}_${file.name}`
     }
     
@@ -66,9 +97,68 @@ export async function POST(request: NextRequest) {
     const buffer = Buffer.from(bytes)
     await writeFile(filePath, buffer)
 
-    // 상대 경로 반환 (다운로드용)
+    // meeting.json 업데이트
+    const meetingJsonPath = path.join(process.cwd(), 'data', acronym, meetingTitle, 'meeting.json')
+    let meetingData: any = {}
+    
+    if (existsSync(meetingJsonPath)) {
+      const data = readFileSync(meetingJsonPath, 'utf8')
+      meetingData = JSON.parse(data)
+    } else {
+      // 기본 meeting.json 구조 생성
+      meetingData = {
+        proposals: [],
+        revisions: {},
+        resultRevisions: [],
+        previousDocument: null,
+        resultDocument: null,
+        memos: {}
+      }
+    }
+
+    // 상대 경로 생성 (다운로드용)
     const folderName = (type === 'result' || type === 'result-revision') ? 'OD' : (type === 'base' ? '' : 'C')
-    const relativePath = folderName ? path.join('data', acronym, meetingDate, folderName, fileName) : path.join('data', acronym, meetingDate, fileName)
+    const relativePath = folderName ? path.join('data', acronym, meetingTitle, folderName, fileName) : path.join('data', acronym, meetingTitle, fileName)
+
+    // 새 문서 정보 추가
+    const newDocument = {
+      id: `doc-${Date.now()}`,
+      name: file.name,
+      type: type,
+      uploadDate: new Date().toISOString(),
+      connections: [],
+      status: 'pending',
+      filePath: relativePath
+    }
+
+    // 타입별로 적절한 위치에 추가
+    switch (type) {
+      case 'base':
+        meetingData.previousDocument = newDocument
+        break
+      case 'proposal':
+        meetingData.proposals.push(newDocument)
+        break
+      case 'revision':
+        if (proposalId) {
+          if (!meetingData.revisions[proposalId]) {
+            meetingData.revisions[proposalId] = []
+          }
+          meetingData.revisions[proposalId].push(newDocument)
+        }
+        break
+      case 'result':
+        meetingData.resultDocument = newDocument
+        break
+      case 'result-revision':
+        meetingData.resultRevisions.push(newDocument)
+        break
+    }
+
+    meetingData.updatedAt = new Date().toISOString()
+
+    // meeting.json 저장
+    await writeFile(meetingJsonPath, JSON.stringify(meetingData, null, 2))
 
     return NextResponse.json({
       success: true,

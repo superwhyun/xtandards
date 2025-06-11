@@ -10,22 +10,25 @@ import { Edit, Save, X } from "lucide-react"
 
 interface Meeting {
   id: string
-  date: string
+  startDate: string
+  endDate: string
   title: string
   description?: string
+  date?: string // 기존 데이터 호환성용
 }
 
 interface EditMeetingDialogProps {
   meeting: Meeting | null
   isOpen: boolean
   onOpenChange: (open: boolean) => void
-  onSave: (meetingId: string, updatedData: { title: string; date: string; description?: string }) => void
+  onSave: (meetingId: string, updatedData: { title: string; startDate: string; endDate: string; description?: string }) => void
 }
 
 export default function EditMeetingDialog({ meeting, isOpen, onOpenChange, onSave }: EditMeetingDialogProps) {
   const [formData, setFormData] = useState({
     title: "",
-    date: "",
+    startDate: "",
+    endDate: "",
     description: ""
   })
   const [errors, setErrors] = useState<{ [key: string]: string }>({})
@@ -35,7 +38,8 @@ export default function EditMeetingDialog({ meeting, isOpen, onOpenChange, onSav
     if (meeting && isOpen) {
       setFormData({
         title: meeting.title || "",
-        date: meeting.date || "",
+        startDate: meeting.startDate || meeting.date || "",
+        endDate: meeting.endDate || meeting.date || "",
         description: meeting.description || ""
       })
       setErrors({})
@@ -49,8 +53,16 @@ export default function EditMeetingDialog({ meeting, isOpen, onOpenChange, onSav
       newErrors.title = "회의 제목을 입력해주세요"
     }
     
-    if (!formData.date.trim()) {
-      newErrors.date = "회의 날짜를 입력해주세요"
+    if (!formData.startDate.trim()) {
+      newErrors.startDate = "회의 시작날짜를 입력해주세요"
+    }
+    
+    if (!formData.endDate.trim()) {
+      newErrors.endDate = "회의 종료날짜를 입력해주세요"
+    }
+    
+    if (formData.startDate && formData.endDate && formData.startDate > formData.endDate) {
+      newErrors.endDate = "종료날짜는 시작날짜보다 늦어야 합니다"
     }
     
     setErrors(newErrors)
@@ -63,7 +75,8 @@ export default function EditMeetingDialog({ meeting, isOpen, onOpenChange, onSav
     if (validateForm()) {
       onSave(meeting.id, {
         title: formData.title.trim(),
-        date: formData.date,
+        startDate: formData.startDate,
+        endDate: formData.endDate,
         description: formData.description.trim()
       })
       onOpenChange(false)
@@ -103,16 +116,30 @@ export default function EditMeetingDialog({ meeting, isOpen, onOpenChange, onSav
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="meetingDate">회의 날짜 *</Label>
+            <Label htmlFor="meetingStartDate">회의 시작날짜 *</Label>
             <Input
-              id="meetingDate"
+              id="meetingStartDate"
               type="date"
-              value={formData.date}
-              onChange={(e) => setFormData({ ...formData, date: e.target.value })}
-              className={errors.date ? "border-red-500" : ""}
+              value={formData.startDate}
+              onChange={(e) => setFormData({ ...formData, startDate: e.target.value })}
+              className={errors.startDate ? "border-red-500" : ""}
             />
-            {errors.date && (
-              <p className="text-red-500 text-sm">{errors.date}</p>
+            {errors.startDate && (
+              <p className="text-red-500 text-sm">{errors.startDate}</p>
+            )}
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="meetingEndDate">회의 종료날짜 *</Label>
+            <Input
+              id="meetingEndDate"
+              type="date"
+              value={formData.endDate}
+              onChange={(e) => setFormData({ ...formData, endDate: e.target.value })}
+              className={errors.endDate ? "border-red-500" : ""}
+            />
+            {errors.endDate && (
+              <p className="text-red-500 text-sm">{errors.endDate}</p>
             )}
           </div>
 

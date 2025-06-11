@@ -33,7 +33,7 @@ export function useMeetingHandlers(standard: Standard | null, setStandard: (s: S
     const formData = new FormData();
     formData.append('file', file);
     formData.append('acronym', standard.acronym);
-    formData.append('meetingDate', meeting.date);
+    formData.append('meetingId', meetingId);
     formData.append('type', type);
     if (proposalId) {
       formData.append('proposalId', proposalId);
@@ -59,6 +59,8 @@ export function useMeetingHandlers(standard: Standard | null, setStandard: (s: S
         filePath: result.filePath,
         uploader: currentUser
       };
+      
+      // 로컬 상태만 업데이트 (서버는 upload API에서 처리됨)
       const updatedStandard = { ...standard };
       const meetingIndex = updatedStandard.meetings.findIndex(m => m.id === meetingId);
       if (meetingIndex !== -1) {
@@ -85,7 +87,7 @@ export function useMeetingHandlers(standard: Standard | null, setStandard: (s: S
             meeting.resultRevisions.push(newDocument);
             break;
         }
-        updateStandard(updatedStandard);
+        setStandard(updatedStandard);
       }
     } catch (error) {
       console.error('업로드 오류:', error);

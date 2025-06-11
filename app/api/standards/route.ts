@@ -1,34 +1,23 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { readFile, writeFile } from 'fs/promises'
-import { existsSync } from 'fs'
+import fs from 'fs'
 import path from 'path'
 
 const STANDARDS_FILE = path.join(process.cwd(), 'data', 'standards.json')
 
-interface Standard {
-  acronym: string
-  title: string
-  createdAt: string
-  lastUpdated: string
-}
-
 // 표준문서 목록 조회
 export async function GET() {
   try {
-    if (!existsSync(STANDARDS_FILE)) {
+    if (!fs.existsSync(STANDARDS_FILE)) {
       return NextResponse.json({ standards: [] })
     }
-
-    const data = await readFile(STANDARDS_FILE, 'utf8')
+    
+    const data = fs.readFileSync(STANDARDS_FILE, 'utf8')
     const standards = JSON.parse(data)
     
-    return NextResponse.json({ standards })
+    return NextResponse.json(standards)
   } catch (error) {
-    console.error('표준문서 목록 조회 오류:', error)
-    return NextResponse.json(
-      { error: '표준문서 목록 조회 중 오류가 발생했습니다' },
-      { status: 500 }
-    )
+    console.error('표준문서 조회 오류:', error)
+    return NextResponse.json({ error: '표준문서 조회 실패' }, { status: 500 })
   }
 }
 
@@ -36,52 +25,53 @@ export async function GET() {
 export async function POST(request: NextRequest) {
   try {
     const { acronym, title } = await request.json()
-
+    
     if (!acronym || !title) {
-      return NextResponse.json(
-        { error: '필수 파라미터가 누락되었습니다' },
-        { status: 400 }
-      )
+      return NextResponse.json({ error: '필수 필드가 누락되었습니다' }, { status: 400 })
     }
-
-    // 기존 표준문서 목록 로드
-    let standards: Standard[] = []
-    if (existsSync(STANDARDS_FILE)) {
-      const data = await readFile(STANDARDS_FILE, 'utf8')
+    
+    // 기존 데이터 읽기
+    let standards = { standards: [] }
+    if (fs.existsSync(STANDARDS_FILE)) {
+      const data = fs.readFileSync(STANDARDS_FILE, 'utf8')
       standards = JSON.parse(data)
     }
-
-    // 중복 확인
-    if (standards.find(s => s.acronym === acronym)) {
-      return NextResponse.json(
-        { error: '이미 존재하는 표준문서입니다' },
-        { status: 409 }
-      )
+    
+    // 중복 체크
+    const exists = standards.standards.some((s: any) => s.acronym === acronym)
+    if (exists) {
+      return NextResponse.json({ error: '이미 존재하는 표준문서입니다' }, { status: 409 })
     }
-
+    
     // 새 표준문서 추가
-    const newStandard: Standard = {
+    const newStandard = {
       acronym,
       title,
+      meetings: [],
       createdAt: new Date().toISOString(),
-      lastUpdated: new Date().toISOString()
+      updatedAt: new Date().toISOString()
     }
-
-    standards.push(newStandard)
-
-    // 파일 저장
-    await writeFile(STANDARDS_FILE, JSON.stringify(standards, null, 2))
-
-    return NextResponse.json({
-      success: true,
+    
+    standards.standards.push(newStandard)
+    
+    // 파일에 저장
+    fs.writeFileSync(STANDARDS_FILE, JSON.stringify(standards, null, 2))
+    
+    // 표준문서별 디렉토리 생성
+    const standardDir = path.join(process.cwd(), 'data', acronym)
+    if (!fs.existsSync(standardDir)) {
+      fs.mkdirSync(standardDir, { recursive: true })
+    }
+    
+    return NextResponse.json({ 
+      message: '표준문서가 생성되었습니다',
       standard: newStandard
     })
-
+    
   } catch (error) {
     console.error('표준문서 생성 오류:', error)
-    return NextResponse.json(
-      { error: '표준문서 생성 중 오류가 발생했습니다' },
-      { status: 500 }
-    )
+    return NextResponse.json({ error: '표준문서 생성 실패' }, { status: 500 })
   }
 }
+
+// %%%%%LAST%%%%%

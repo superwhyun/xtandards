@@ -24,6 +24,7 @@ import MeetingTab from "@/components/MeetingTab"
 import LoginScreen, { UserRole, AuthState } from "@/components/auth/LoginScreen"
 import SettingsDialog from "@/components/auth/SettingsDialog"
 import { useMeetingHandlers } from "@/hooks/useMeetingHandlers"
+import { saveStandardData } from "@/lib/standardData"
 import MemoSection from "@/components/MemoSection"
 
 import { Document, Meeting } from "@/types/standard"
@@ -35,9 +36,9 @@ interface Standard {
 }
 
 // 서버에서 메모 로드 함수
-const loadMemosFromServer = async (acronym: string, meetingDate: string): Promise<{ [key: string]: string }> => {
+const loadMemosFromServer = async (acronym: string, meetingId: string): Promise<{ [key: string]: string }> => {
   try {
-    const response = await fetch(`/api/memo?acronym=${acronym}&meetingDate=${meetingDate}`)
+    const response = await fetch(`/api/memo?acronym=${acronym}&meetingId=${meetingId}`)
     if (response.ok) {
       const result = await response.json()
       return result.memos || {}
@@ -48,7 +49,7 @@ const loadMemosFromServer = async (acronym: string, meetingDate: string): Promis
   return {}
 }
 
-import { getStandardData, saveStandardData } from "@/lib/standardData"
+
 
 // 페이지 컴포넌트 정의
 function AcronymPage() {
@@ -115,24 +116,27 @@ function AcronymPage() {
     }
 
     if (acronym) {
-      const standardData = getStandardData(acronym)
-      if (standardData) {
-        setStandard(standardData)
-        // activeMeetingId가 설정되지 않았거나, 설정된 미팅이 더 이상 존재하지 않을 때만 마지막 미팅으로 설정
-        if (standardData.meetings.length > 0 && 
-            (!activeMeetingId || !standardData.meetings.find(m => m.id === activeMeetingId))) {
-          setActiveMeetingId(standardData.meetings[standardData.meetings.length - 1].id)
+      const loadStandardData = async () => {
+        try {
+          const response = await fetch(`/api/${acronym}/meetings`)
+          if (response.ok) {
+            const standardData = await response.json()
+            setStandard(standardData)
+            
+            // activeMeetingId가 설정되지 않았거나, 설정된 미팅이 더 이상 존재하지 않을 때만 마지막 미팅으로 설정
+            if (standardData.meetings.length > 0 && 
+                (!activeMeetingId || !standardData.meetings.find(m => m.id === activeMeetingId))) {
+              setActiveMeetingId(standardData.meetings[standardData.meetings.length - 1].id)
+            }
+          } else {
+            console.error('표준문서 조회 실패:', response.status)
+          }
+        } catch (error) {
+          console.error('표준문서 조회 오류:', error)
         }
-      } else {
-        // 표준문서가 없으면 새로 생성
-        const newStandard: Standard = {
-          acronym: acronym,
-          title: `${acronym} 표준문서`,
-          meetings: []
-        }
-        setStandard(newStandard)
-        saveStandardData(newStandard)
       }
+      
+      loadStandardData()
     }
     
     // 터치패드 스와이프로 인한 뒤로가기 방지
@@ -168,7 +172,7 @@ function AcronymPage() {
       const meeting = standard.meetings.find(m => m.id === activeMeetingId)
       if (meeting) {
         const loadMemos = async () => {
-          const serverMemos = await loadMemosFromServer(standard.acronym, meeting.date)
+          const serverMemos = await loadMemosFromServer(standard.acronym, meeting.id)
           
           // 서버에서 가져온 메모가 있으면 로컬 상태 업데이트
           if (Object.keys(serverMemos).length > 0) {
@@ -185,7 +189,7 @@ function AcronymPage() {
               })
             }
             setStandard(updatedStandard)
-            saveStandardData(updatedStandard)
+            // saveStandardData(updatedStandard) - 서버 API 사용
           }
         }
         
@@ -194,9 +198,19 @@ function AcronymPage() {
     }
   }, [standard?.acronym, activeMeetingId])
 
-  const updateStandard = (updatedStandard: Standard) => {
+  const updateStandard = async (updatedStandard: Standard) => {
     setStandard(updatedStandard)
-    saveStandardData(updatedStandard)
+    
+    try {
+      // 서버에 업데이트된 표준문서 데이터 저장
+      await fetch(`/api/${acronym}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updatedStandard)
+      })
+    } catch (error) {
+      console.error('표준문서 업데이트 오류:', error)
+    }
   }
 
 const { handleEditMeeting, handleSaveMeeting, handleFileUpload } = useMeetingHandlers(standard, setStandard, updateStandard, auth.user || undefined)
@@ -233,9 +247,8 @@ const { handleEditMeeting, handleSaveMeeting, handleFileUpload } = useMeetingHan
         },
         body: JSON.stringify({
           acronym: standard.acronym,
-          meetingDate: meeting.date, // meetingId 대신 meetingDate 사용
+          meetingId: meeting.id,
           proposalId,
-          proposalName: proposal.name,
           memo
         })
       })
@@ -264,7 +277,7 @@ const { handleEditMeeting, handleSaveMeeting, handleFileUpload } = useMeetingHan
       }
       
       setStandard(updatedStandard)
-      saveStandardData(updatedStandard) // localStorage에도 저장 (백업용)
+      // saveStandardData(updatedStandard) - 서버 API 사용
       console.log('메모 저장 완료:', updatedStandard) // 디버깅용
       
     } catch (error) {
@@ -276,59 +289,68 @@ const { handleEditMeeting, handleSaveMeeting, handleFileUpload } = useMeetingHan
   const handleFileDelete = useCallback(async (documentId: string, meetingId: string, type: string, proposalId?: string, filePath?: string) => {
     if (!standard) return
 
-    // 실제 파일 삭제 API 호출
-    if (filePath) {
-      try {
-        const response = await fetch(`/api/delete?path=${encodeURIComponent(filePath)}`, {
-          method: 'DELETE'
-        });
-        
-        if (!response.ok) {
-          const result = await response.json();
-          alert(`파일 삭제 실패: ${result.error}`);
-          return;
-        }
-      } catch (error) {
-        console.error('파일 삭제 오류:', error);
-        alert('파일 삭제 중 오류가 발생했습니다');
-        return;
-      }
-    }
-
-    const updatedStandard = { ...standard }
-    const meetingIndex = updatedStandard.meetings.findIndex(m => m.id === meetingId)
-    
-    if (meetingIndex !== -1) {
-      const meeting = updatedStandard.meetings[meetingIndex]
+    try {
+      // 파일 삭제 및 meeting.json 업데이트 API 호출
+      const params = new URLSearchParams({
+        acronym: standard.acronym,
+        meetingId,
+        documentId,
+        type
+      })
       
-      switch (type) {
-        case 'base':
-          meeting.previousDocument = undefined
-          break
-        case 'proposal':
-          meeting.proposals = meeting.proposals.filter(p => p.id !== documentId)
-          // 해당 proposal의 revision도 모두 삭제
-          if (proposalId) {
-            delete meeting.revisions[proposalId]
-          }
-          break
-        case 'revision':
-          if (proposalId && meeting.revisions[proposalId]) {
-            meeting.revisions[proposalId] = meeting.revisions[proposalId].filter(r => r.id !== documentId)
-            if (meeting.revisions[proposalId].length === 0) {
+      if (proposalId) params.append('proposalId', proposalId)
+      if (filePath) params.append('filePath', filePath)
+      
+      const response = await fetch(`/api/file-delete?${params}`, {
+        method: 'DELETE'
+      })
+      
+      if (!response.ok) {
+        const result = await response.json()
+        alert(`파일 삭제 실패: ${result.error}`)
+        return
+      }
+
+      // 로컬 상태 업데이트
+      const updatedStandard = { ...standard }
+      const meetingIndex = updatedStandard.meetings.findIndex(m => m.id === meetingId)
+      
+      if (meetingIndex !== -1) {
+        const meeting = updatedStandard.meetings[meetingIndex]
+        
+        switch (type) {
+          case 'base':
+            meeting.previousDocument = undefined
+            break
+          case 'proposal':
+            meeting.proposals = meeting.proposals.filter(p => p.id !== documentId)
+            // 해당 proposal의 revision도 모두 삭제
+            if (proposalId) {
               delete meeting.revisions[proposalId]
             }
-          }
-          break
-        case 'result':
-          meeting.resultDocument = undefined
-          break
-        case 'result-revision':
-          meeting.resultRevisions = meeting.resultRevisions.filter(r => r.id !== documentId)
-          break
+            break
+          case 'revision':
+            if (proposalId && meeting.revisions[proposalId]) {
+              meeting.revisions[proposalId] = meeting.revisions[proposalId].filter(r => r.id !== documentId)
+              if (meeting.revisions[proposalId].length === 0) {
+                delete meeting.revisions[proposalId]
+              }
+            }
+            break
+          case 'result':
+            meeting.resultDocument = undefined
+            break
+          case 'result-revision':
+            meeting.resultRevisions = meeting.resultRevisions.filter(r => r.id !== documentId)
+            break
+        }
+        
+        setStandard(updatedStandard)
       }
       
-      updateStandard(updatedStandard)
+    } catch (error) {
+      console.error('파일 삭제 오류:', error)
+      alert('파일 삭제 중 오류가 발생했습니다')
     }
   }, [standard])
   const handleStatusChange = useCallback((meetingId: string, proposalId: string, status: "accepted" | "review" | "rejected") => {
@@ -360,17 +382,51 @@ const { handleEditMeeting, handleSaveMeeting, handleFileUpload } = useMeetingHan
   }, [standard])
 
   // 회의 완료/되돌리기 핸들러
-  const handleMeetingToggle = useCallback((meetingId: string) => {
+  const handleMeetingToggle = useCallback(async (meetingId: string) => {
     if (!standard) return
     
     const meetings = [...standard.meetings]
     const meetingIndex = meetings.findIndex((m) => m.id === meetingId)
     if (meetingIndex !== -1) {
+      const newCompletedStatus = !meetings[meetingIndex].isCompleted
+      
+      // 먼저 로컬 상태 업데이트
       meetings[meetingIndex] = {
         ...meetings[meetingIndex],
-        isCompleted: !meetings[meetingIndex].isCompleted,
+        isCompleted: newCompletedStatus,
       }
-      updateStandard({ ...standard, meetings })
+      const updatedStandard = { ...standard, meetings }
+      setStandard(updatedStandard)
+      saveStandardData(updatedStandard)
+      
+      // 서버에 회의 상태 업데이트
+      try {
+        const response = await fetch('/api/meetings/update', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            acronym: standard.acronym,
+            meetingId: meetingId,
+            isCompleted: newCompletedStatus
+          }),
+        })
+        
+        if (!response.ok) {
+          console.error('서버 회의 상태 업데이트 실패:', response.statusText)
+          // 실패시 로컬 상태 롤백
+          const originalMeetings = [...standard.meetings]
+          setStandard({ ...standard, meetings: originalMeetings })
+          saveStandardData({ ...standard, meetings: originalMeetings })
+        }
+      } catch (error) {
+        console.error('회의 상태 업데이트 오류:', error)
+        // 실패시 로컬 상태 롤백
+        const originalMeetings = [...standard.meetings]
+        setStandard({ ...standard, meetings: originalMeetings })
+        saveStandardData({ ...standard, meetings: originalMeetings })
+      }
     }
   }, [standard])
 
@@ -388,116 +444,119 @@ const { handleEditMeeting, handleSaveMeeting, handleFileUpload } = useMeetingHan
       return;
     }
 
-    // 관련 파일들 삭제 (날짜 기반 폴더의 모든 파일)
-    const filesToDelete: string[] = [];
-    const meetingDate = meetingToDelete.date;
-    
-    // C 폴더와 OD 폴더의 모든 파일들을 삭제 대상에 추가
     try {
-      // 실제로는 전체 날짜 폴더를 삭제하는 것이 더 효율적이지만
-      // 현재 구조에서는 개별 파일 삭제로 처리
-      if (meetingToDelete.previousDocument?.filePath) {
-        filesToDelete.push(meetingToDelete.previousDocument.filePath);
-      }
-      
-      meetingToDelete.proposals.forEach(proposal => {
-        if (proposal.filePath) filesToDelete.push(proposal.filePath);
-      });
-      
-      Object.values(meetingToDelete.revisions).forEach(revisions => {
-        revisions.forEach(revision => {
-          if (revision.filePath) filesToDelete.push(revision.filePath);
-        });
-      });
-      
-      if (meetingToDelete.resultDocument?.filePath) {
-        filesToDelete.push(meetingToDelete.resultDocument.filePath);
-      }
-      
-      meetingToDelete.resultRevisions.forEach(revision => {
-        if (revision.filePath) filesToDelete.push(revision.filePath);
-      });
+      // 서버에 회의 삭제 요청
+      const response = await fetch(`/api/meetings/delete?acronym=${encodeURIComponent(standard.acronym)}&meetingId=${encodeURIComponent(meetingId)}`, {
+        method: 'DELETE'
+      })
 
-      // 메모 파일들도 삭제 (C 폴더의 .json 파일들)
-      meetingToDelete.proposals.forEach(proposal => {
-        const baseName = proposal.name.split('.')[0];
-        const memoPath = `data/${standard.acronym}/${meetingDate}/C/${baseName}.json`;
-        filesToDelete.push(memoPath);
-      });
+      if (!response.ok) {
+        const errorData = await response.json()
+        alert(`회의 삭제 실패: ${errorData.error}`)
+        return
+      }
+
+      // 성공시 로컬 상태 업데이트
+      const updatedStandard = {
+        ...standard,
+        meetings: standard.meetings.filter(m => m.id !== meetingId)
+      }
+      setStandard(updatedStandard)
+      
+      // 활성 회의가 삭제된 경우 첫 번째 회의로 변경
+      if (activeMeetingId === meetingId) {
+        if (updatedStandard.meetings.length > 0) {
+          setActiveMeetingId(updatedStandard.meetings[0].id)
+        } else {
+          setActiveMeetingId(null)
+        }
+      }
+
+      alert('회의가 삭제되었습니다.')
+
     } catch (error) {
-      console.error('파일 목록 구성 오류:', error);
-    }
-
-    // 파일들 순차적으로 삭제
-    for (const filePath of filesToDelete) {
-      try {
-        await fetch(`/api/delete?path=${encodeURIComponent(filePath)}`, {
-          method: 'DELETE'
-        });
-      } catch (error) {
-        console.error('파일 삭제 오류:', error);
-      }
-    }
-
-    // 회의 데이터에서 제거
-    const updatedStandard = {
-      ...standard,
-      meetings: standard.meetings.filter(m => m.id !== meetingId)
-    };
-    
-    updateStandard(updatedStandard);
-    
-    // 활성 회의 변경
-    if (activeMeetingId === meetingId) {
-      const remainingMeetings = updatedStandard.meetings;
-      if (remainingMeetings.length > 0) {
-        setActiveMeetingId(remainingMeetings[remainingMeetings.length - 1].id);
-      } else {
-        setActiveMeetingId('');
-      }
+      console.error('회의 삭제 오류:', error)
+      alert('회의 삭제 중 오류가 발생했습니다.')
     }
   }, [standard, activeMeetingId])
 
   // 새 회의 추가 핸들러
-  const handleCreateMeeting = useCallback((meeting: { date: string; title: string; description?: string }) => {
+  // 새 회의 추가 핸들러
+  const handleCreateMeeting = useCallback(async (meeting: { startDate: string; endDate: string; title: string; description?: string }) => {
     if (!standard) return
     
-    const newMeeting: Meeting = {
-      id: `meeting-${Date.now()}`,
-      date: meeting.date,
-      title: meeting.title,
-      description: meeting.description,
-      proposals: [],
-      revisions: {},
-      resultRevisions: [],
-      isCompleted: false,
-      memos: {} // 메모 필드 초기화
-    }
-
-    // 이전 회의가 있고 완료된 경우, 마지막 회의의 Output Document를 Base Document로 설정
-    const completedMeetings = standard.meetings.filter(m => m.isCompleted);
-    if (completedMeetings.length > 0) {
-      const lastCompletedMeeting = completedMeetings[completedMeetings.length - 1];
-      if (lastCompletedMeeting.resultDocument) {
-        // Output Document의 마지막 revision이 있으면 그걸 사용, 없으면 기본 resultDocument 사용
-        const lastRevision = lastCompletedMeeting.resultRevisions.length > 0 
-          ? lastCompletedMeeting.resultRevisions[lastCompletedMeeting.resultRevisions.length - 1]
-          : lastCompletedMeeting.resultDocument;
-        
-        newMeeting.previousDocument = {
-          ...lastRevision,
-          id: `base-${Date.now()}`,
-          type: "previous"
-        };
+    try {
+      // 서버에 회의 생성 요청
+      const response = await fetch('/api/meetings', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          standardAcronyms: [standard.acronym],
+          startDate: meeting.startDate,
+          endDate: meeting.endDate,
+          title: meeting.title,
+          description: meeting.description
+        })
+      })
+      
+      if (!response.ok) {
+        const errorData = await response.json()
+        alert(`회의 생성 실패: ${errorData.error}`)
+        return
       }
+      
+      // 중복 ID 체크 및 유니크 ID 생성
+      let uniqueId = meeting.title
+      let counter = 1
+      while (standard.meetings.some(m => m.id === uniqueId)) {
+        uniqueId = `${meeting.title} (${counter})`
+        counter++
+      }
+      
+      const newMeeting: Meeting = {
+        id: uniqueId,
+        startDate: meeting.startDate,
+        endDate: meeting.endDate,
+        title: meeting.title,
+        description: meeting.description,
+        proposals: [],
+        revisions: {},
+        resultRevisions: [],
+        isCompleted: false,
+        memos: {} // 메모 필드 초기화
+      }
+
+      // 이전 회의가 있고 완료된 경우, 마지막 회의의 Output Document를 Base Document로 설정
+      const completedMeetings = standard.meetings.filter(m => m.isCompleted);
+      if (completedMeetings.length > 0) {
+        const lastCompletedMeeting = completedMeetings[completedMeetings.length - 1];
+        if (lastCompletedMeeting.resultDocument) {
+          // Output Document의 마지막 revision이 있으면 그걸 사용, 없으면 기본 resultDocument 사용
+          const lastRevision = lastCompletedMeeting.resultRevisions.length > 0 
+            ? lastCompletedMeeting.resultRevisions[lastCompletedMeeting.resultRevisions.length - 1]
+            : lastCompletedMeeting.resultDocument;
+          
+          newMeeting.previousDocument = {
+            ...lastRevision,
+            id: `base-${Date.now()}`,
+            type: "previous"
+          };
+        }
+      }
+      
+      const updatedStandard = {
+        ...standard,
+        meetings: [...standard.meetings, newMeeting]
+      }
+      updateStandard(updatedStandard)
+      setActiveMeetingId(newMeeting.id)
+      
+    } catch (error) {
+      console.error('회의 생성 오류:', error)
+      alert('회의 생성 중 오류가 발생했습니다.')
     }
-    
-    const updatedStandard = {
-      ...standard,
-      meetings: [...standard.meetings, newMeeting]
-    }
-    updateStandard(updatedStandard)
-    setActiveMeetingId(newMeeting.id)
   }, [standard])
 
   // 로그인하지 않은 경우 로그인 화면 표시
@@ -589,6 +648,7 @@ function StatusSelector({
 
 // 메모 컴포넌트를 별도로 분리
 
+// MeetingTab 컴포넌트가 함수로 정의되어 있고 JSX가 함수 내에 포함되어 있어야 함
 function MeetingTab({
   meeting,
   acronym,
@@ -614,7 +674,7 @@ function MeetingTab({
 }) {
   const [localMemos, setLocalMemos] = useState<{ [key: string]: string }>({})
   const [hasInitialized, setHasInitialized] = useState(false)
-  
+
   // 컴포넌트 마운트시 기존 메모 로드 (한 번만)
   useEffect(() => {
     if (!hasInitialized && meeting.memos) {
@@ -647,11 +707,11 @@ function MeetingTab({
 
   return (
     <div className="space-y-8">
-      {/* 모바일에서는 세로 스택, 데스크톱에서는 가로 그리드 */}
-      <div className="flex flex-col xl:grid xl:grid-cols-12 gap-6 min-h-[500px]">
-        {/* Base Document */}
-        <div className="xl:col-span-2">
-          <div className="xl:sticky xl:top-4">
+      {/* 좌우 고정폭, 중앙 가변폭 구조 */}
+      <div className="flex flex-col lg:flex-row gap-6 min-h-[500px]">
+        {/* Base Document - 고정폭 */}
+        <div className="lg:w-56 lg:flex-shrink-0">
+          <div className="lg:sticky lg:top-4">
             <div className="bg-slate-100 rounded-lg p-3 mb-4">
               <h3 className="font-bold text-lg text-slate-800 flex items-center gap-2">
                 <div className="w-3 h-3 bg-slate-600 rounded-full"></div>
@@ -659,7 +719,7 @@ function MeetingTab({
               </h3>
             </div>
             {meeting.previousDocument ? (
-              <div className="flex justify-center xl:block">
+              <div className="flex justify-center lg:justify-start">
                 <DocumentCard 
                   document={meeting.previousDocument} 
                   onDownload={() => handleDownload(meeting.previousDocument!.filePath!, meeting.previousDocument!.name)}
@@ -668,7 +728,19 @@ function MeetingTab({
                 />
               </div>
             ) : (
-              <div className="space-y-4">
+              !meeting.isCompleted && userRole === 'chair' ? (
+                <div className="flex justify-center lg:justify-start">
+                  <DropZone onDrop={(files) => onFileUpload(files, "base")} className="w-48 h-40">
+                    <div className="text-center">
+                      <div className="bg-slate-100 rounded-full p-3 mb-2 mx-auto w-fit">
+                        <Upload className="h-6 w-6 text-slate-600" />
+                      </div>
+                      <p className="text-slate-700 font-medium text-sm">Base 문서가 없습니다</p>
+                      <p className="text-slate-600 text-xs mt-1">파일을 드래그하여 업로드</p>
+                    </div>
+                  </DropZone>
+                </div>
+              ) : (
                 <Card className="w-48 h-40 border-2 border-dashed border-gray-200 bg-gradient-to-br from-gray-50 to-slate-50 mx-auto xl:mx-0">
                   <CardContent className="h-full flex items-center justify-center">
                     <div className="text-center text-gray-400">
@@ -677,25 +749,13 @@ function MeetingTab({
                     </div>
                   </CardContent>
                 </Card>
-                {!meeting.isCompleted && userRole === 'chair' && (
-                  <div className="flex justify-center xl:block">
-                    <DropZone onDrop={(files) => onFileUpload(files, "base")} className="w-48">
-                      <div className="text-center">
-                        <div className="bg-slate-100 rounded-full p-3 mb-2 mx-auto w-fit">
-                          <Upload className="h-6 w-6 text-slate-600" />
-                        </div>
-                        <p className="text-slate-700 font-medium text-sm">Base 문서 업로드</p>
-                      </div>
-                    </DropZone>
-                  </div>
-                )}
-              </div>
+              )
             )}
           </div>
         </div>
 
-        {/* 기고서 및 수정본 */}
-        <div className="xl:col-span-7">
+        {/* 기고서 및 수정본 - 가변폭 */}
+        <div className="flex-1 min-w-0">
           <div className="bg-blue-100 rounded-lg p-3 mb-4">
             <h3 className="font-bold text-lg text-blue-800 flex items-center gap-2">
               <div className="w-3 h-3 bg-blue-600 rounded-full"></div>
@@ -760,6 +820,7 @@ function MeetingTab({
                   memo={localMemos[proposal.id] || ''}
                   onMemoChange={(value) => handleMemoChange(proposal.id, value)}
                   onMemoBlur={(value) => handleMemoBlur(proposal.id, value)}
+                  onMemoToggle={() => onMemoToggle(proposal.id)}
                 />
               </div>
             ))}
@@ -780,9 +841,9 @@ function MeetingTab({
           </div>
         </div>
 
-        {/* Output Document */}
-        <div className="xl:col-span-3">
-          <div className="xl:sticky xl:top-4">
+        {/* Output Document - 고정폭 */}
+        <div className="lg:w-64 lg:flex-shrink-0">
+          <div className="lg:sticky lg:top-4">
             <div className="bg-green-100 rounded-lg p-3 mb-4">
               <h3 className="font-bold text-lg text-green-800 flex items-center gap-2">
                 <div className="w-3 h-3 bg-green-600 rounded-full"></div>
@@ -913,99 +974,104 @@ function MeetingTab({
   )
 }
 
+  // Main return for AcronymPage
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-gray-100">
-      <div className="flex flex-col lg:flex-row">
-        {/* 모바일 헤더 */}
-        <div className="lg:hidden bg-white border-b border-gray-200 p-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
-                {standard.acronym}
-              </h1>
-              <p className="text-gray-600 text-sm mt-1">{standard.title}</p>
+    <div className="flex flex-col lg:flex-row">
+      {/* 모바일 헤더 */}
+      <div className="lg:hidden bg-white border-b border-gray-200 p-4">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
+              {standard.acronym}
+            </h1>
+            <p className="text-gray-600 text-sm mt-1">{standard.title}</p>
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="text-xs text-gray-600">
+              <span className={`font-medium ${auth.role === 'chair' ? 'text-blue-600' : 'text-green-600'}`}>
+                {auth.role === 'chair' ? 'Chair' : 'Contributor'}
+              </span>
             </div>
-            <div className="flex items-center gap-2">
-              <div className="text-xs text-gray-600">
-                <span className={`font-medium ${auth.role === 'chair' ? 'text-blue-600' : 'text-green-600'}`}>
-                  {auth.role === 'chair' ? 'Chair' : 'Contributor'}
-                </span>
-              </div>
-              <Link href="/">
-                <Button variant="outline" size="sm" className="flex items-center gap-2">
-                  <Home className="h-4 w-4" />
-                  홈
-                </Button>
-              </Link>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleLogout}
-                className="flex items-center gap-2"
-              >
-                <LogOut className="h-4 w-4" />
+            <Link href="/">
+              <Button variant="outline" size="sm" className="flex items-center gap-2">
+                <Home className="h-4 w-4" />
+                홈
               </Button>
-            </div>
+            </Link>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleLogout}
+              className="flex items-center gap-2"
+            >
+              <LogOut className="h-4 w-4" />
+            </Button>
           </div>
         </div>
+      </div>
 
-        {/* 사이드바 */}
-        <div className="w-full lg:w-64 bg-white border-r border-gray-200 min-h-screen">
-          <div className="p-4">
-            {/* 홈으로 버튼 */}
-            <div className="flex flex-col gap-2 mb-4">
-              <Link href="/" className="block">
-                <Button variant="outline" size="sm" className="w-full flex items-center gap-2">
-                  <Home className="h-4 w-4" />
-                  홈으로
-                </Button>
-              </Link>
+      {/* 사이드바 - 모바일에서는 상단 수평, 데스크톱에서는 좌측 세로 */}
+      <div className="bg-white border-b lg:border-r lg:border-b-0 border-gray-200 lg:w-64 lg:min-h-screen">
+        <div className="p-2 lg:p-4">
+          {/* 홈으로 버튼 */}
+          <div className="flex lg:flex-col gap-2 mb-2 lg:mb-4 overflow-x-auto lg:overflow-x-visible">
+            <Link href="/" className="block flex-shrink-0">
+              <Button variant="outline" size="sm" className="lg:w-full flex items-center gap-2">
+                <Home className="h-4 w-4" />
+                <span className="hidden lg:inline">홈으로</span>
+              </Button>
+            </Link>
+            <div className="flex gap-2 flex-shrink-0">
               <div className="flex gap-2">
                 {auth.role === 'chair' && (
                   <Button
                     variant="outline"
                     size="sm"
                     onClick={() => setSettingsOpen(true)}
-                    className="flex-1 flex items-center gap-2"
+                    className="lg:flex-1 flex items-center gap-2"
                   >
                     <Settings className="h-4 w-4" />
-                    설정
+                    <span className="hidden lg:inline">설정</span>
                   </Button>
                 )}
                 <Button
                   variant="outline"
                   size="sm"
                   onClick={handleLogout}
-                  className="flex-1 flex items-center gap-2"
+                  className="lg:flex-1 flex items-center gap-2"
                 >
                   <LogOut className="h-4 w-4" />
-                  로그아웃
+                  <span className="hidden lg:inline">로그아웃</span>
                 </Button>
               </div>
             </div>
+          </div>
 
-            {/* 데스크톱 헤더 */}
-            <div className="hidden lg:block mb-6">
-              <h1 className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
-                {standard.acronym}
-              </h1>
-              <p className="text-gray-600 text-sm mt-1">{standard.title}</p>
-              <div className="text-xs text-gray-600 mt-2">
-                <span className={`font-medium ${auth.role === 'chair' ? 'text-blue-600' : 'text-green-600'}`}>
-                  {auth.role === 'chair' ? 'Chair' : 'Contributor'}
-                </span>
-                로 로그인됨
-              </div>
+          {/* 데스크톱 헤더 */}
+          <div className="hidden lg:block mb-6">
+            <h1 className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
+              {standard.acronym}
+            </h1>
+            <p className="text-gray-600 text-sm mt-1">{standard.title}</p>
+            <div className="text-xs text-gray-600 mt-2">
+              <span className={`font-medium ${auth.role === 'chair' ? 'text-blue-600' : 'text-green-600'}`}>
+                {auth.role === 'chair' ? 'Chair' : 'Contributor'}
+              </span>
+              로 로그인됨
             </div>
+          </div>
 
+          {/* 회의 목록 */}
+          <div className="flex lg:flex-col gap-2 overflow-x-auto lg:overflow-x-visible">
+            <h3 className="font-semibold text-gray-800 mb-2 hidden lg:block flex-shrink-0">회의 목록</h3>
             {/* 회의 탭들 */}
-            <div className="space-y-2 max-h-screen lg:max-h-none overflow-y-auto">
+            <div className="flex lg:flex-col gap-2 lg:space-y-2 lg:space-x-0 space-x-2 space-y-0 overflow-x-auto lg:overflow-x-visible lg:overflow-y-auto lg:max-h-screen">
               {standard.meetings.map((meeting) => (
-                <div key={meeting.id} className="relative group">
+                <div key={meeting.id} className="relative group flex-shrink-0 lg:flex-shrink">
                   <button
                     onClick={() => setActiveMeetingId(meeting.id)}
                     className={cn(
-                      "w-full text-left p-3 rounded-lg transition-all duration-200",
+                      "text-left p-3 rounded-lg transition-all duration-200 lg:w-full whitespace-nowrap lg:whitespace-normal",
                       activeMeetingId === meeting.id
                         ? "bg-gradient-to-r from-blue-500 to-indigo-500 text-white shadow-lg"
                         : "hover:bg-gray-100"
@@ -1019,7 +1085,13 @@ function MeetingTab({
                           "text-xs truncate",
                           activeMeetingId === meeting.id ? "text-blue-100" : "text-gray-500"
                         )}>
-                          {new Date(meeting.date).toLocaleDateString("ko-KR")}
+                          {meeting.startDate && meeting.endDate ? (
+                            meeting.startDate === meeting.endDate ? 
+                              new Date(meeting.startDate).toLocaleDateString("ko-KR") :
+                              `${new Date(meeting.startDate).toLocaleDateString("ko-KR")} ~ ${new Date(meeting.endDate).toLocaleDateString("ko-KR")}`
+                          ) : (
+                            meeting.date ? new Date(meeting.date).toLocaleDateString("ko-KR") : "날짜 없음"
+                          )}
                         </p>
                       </div>
                       {meeting.isCompleted && (
@@ -1056,40 +1128,44 @@ function MeetingTab({
                 </div>
               ))}
 
-              {auth.role === 'chair' && <NewMeetingDialog onCreateMeeting={handleCreateMeeting} />}
+              {auth.role === 'chair' && (
+                <div className="flex-shrink-0 lg:flex-shrink">
+                  <NewMeetingDialog onCreateMeeting={handleCreateMeeting} />
+                </div>
+              )}
             </div>
           </div>
         </div>
+      </div>
 
-        {/* 메인 콘텐츠 */}
-        <div className="flex-1 p-4 lg:p-6 overflow-x-auto">
-          {standard.meetings.length === 0 ? (
-            <div className="flex items-center justify-center h-96">
-              <div className="text-center">
-                <h2 className="text-xl font-semibold text-gray-600 mb-2">회의가 없습니다</h2>
-                <p className="text-gray-500">새 회의를 추가하여 시작하세요.</p>
-              </div>
+      {/* 메인 콘텐츠 */}
+      <div className="flex-1 p-2 lg:p-6 overflow-x-auto lg:overflow-x-visible">
+        {standard.meetings.length === 0 ? (
+          <div className="flex items-center justify-center h-96">
+            <div className="text-center">
+              <h2 className="text-xl font-semibold text-gray-600 mb-2">회의가 없습니다</h2>
+              <p className="text-gray-500">새 회의를 추가하여 시작하세요.</p>
             </div>
-          ) : (
-            standard.meetings
-              .filter(meeting => meeting.id === activeMeetingId)
-              .map((meeting) => (
-                <MeetingTab
-                  key={meeting.id}
-                  meeting={meeting}
-                  acronym={standard.acronym}
-                  userRole={auth.role!}
-                  onFileUpload={(files, type, proposalId) => handleFileUpload(files, meeting.id, type, proposalId)}
-                  onComplete={() => handleMeetingToggle(meeting.id)}
-                  onStatusChange={(proposalId, status) => handleStatusChange(meeting.id, proposalId, status)}
-                  onFileDelete={(documentId, type, proposalId, filePath) => handleFileDelete(documentId, meeting.id, type, proposalId, filePath)}
-                  onMemoToggle={handleMemoToggle}
-                  onMemoUpdate={(proposalId, memo) => handleMemoUpdate(meeting.id, proposalId, memo)}
-                  expandedMemos={expandedMemos}
-                />
-              ))
-          )}
-        </div>
+          </div>
+        ) : (
+          standard.meetings
+            .filter(meeting => meeting.id === activeMeetingId)
+            .map((meeting) => (
+              <MeetingTab
+                key={meeting.id}
+                meeting={meeting}
+                acronym={standard.acronym}
+                userRole={auth.role!}
+                onFileUpload={(files, type, proposalId) => handleFileUpload(files, meeting.id, type, proposalId)}
+                onComplete={() => handleMeetingToggle(meeting.id)}
+                onStatusChange={(proposalId, status) => handleStatusChange(meeting.id, proposalId, status)}
+                onFileDelete={(documentId, type, proposalId, filePath) => handleFileDelete(documentId, meeting.id, type, proposalId, filePath)}
+                onMemoToggle={handleMemoToggle}
+                onMemoUpdate={(proposalId, memo) => handleMemoUpdate(meeting.id, proposalId, memo)}
+                expandedMemos={expandedMemos}
+              />
+            ))
+        )}
       </div>
 
       {auth.role === 'chair' && (
@@ -1107,5 +1183,4 @@ function MeetingTab({
     </div>
   )
 }
-
 export default AcronymPage
