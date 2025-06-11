@@ -4,6 +4,11 @@ import path from 'path'
 
 const STANDARDS_FILE = path.join(process.cwd(), 'data', 'standards.json')
 
+// 파일 경로에서 안전하지 않은 문자들을 교체하는 함수
+function sanitizeForPath(str: string): string {
+  return str.replace(/[\/\\:*?"<>|]/g, '_')
+}
+
 // 회의 상태 업데이트 (완료/미완료 토글)
 export async function POST(request: NextRequest) {
   try {
@@ -39,7 +44,8 @@ export async function POST(request: NextRequest) {
     
     // meeting.json도 업데이트
     const meeting = standard.meetings[meetingIndex]
-    const meetingJsonPath = path.join(process.cwd(), 'data', acronym, meeting.title, 'meeting.json')
+    const safeMeetingId = sanitizeForPath(meetingId)
+    const meetingJsonPath = path.join(process.cwd(), 'data', acronym, safeMeetingId, 'meeting.json')
     
     if (fs.existsSync(meetingJsonPath)) {
       const meetingData = JSON.parse(fs.readFileSync(meetingJsonPath, 'utf8'))

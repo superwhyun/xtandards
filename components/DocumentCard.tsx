@@ -13,7 +13,6 @@ interface DocumentCardProps {
   variant?: "default" | "small";
   onDownload?: () => void;
   onDelete?: () => void;
-  onMemoClick?: () => void;
   canDelete?: boolean;
   isLatest?: boolean;
   revisionIndex?: number; // 수정본 인덱스
@@ -24,7 +23,6 @@ export default function DocumentCard({
   showConnections = false,
   onDownload,
   onDelete,
-  onMemoClick,
   canDelete = true,
   isLatest = false,
   revisionIndex,
@@ -76,101 +74,79 @@ export default function DocumentCard({
   const isChairUpload = document.uploader === 'chair';
 
   const typeInfo = getTypeInfo(document.type);
-  const baseHeight = "h-44"; // 모든 카드 크기 동일하게
+  const baseHeight = "h-12"; // 높이를 더 줄임
   const typeLabel = getTypeLabel(document.type, revisionIndex);
 
   return (
     <Card
       className={cn(
-        "w-48 transition-all duration-300 hover:shadow-lg hover:scale-105 border-2 border-gray-300 shadow-md flex flex-col relative",
+        "w-full transition-all duration-300 hover:shadow-lg border-2 border-gray-300 shadow-md flex relative",
         baseHeight,
         document.status === "rejected" && "opacity-60",
         isLatest ? "bg-yellow-50 border-yellow-300" : 
         isChairUpload ? "bg-gray-100 border-gray-400" : "bg-white" // Chair 업로드는 회색 배경
       )}
     >
-      {/* 타입 라벨 - 오른쪽 하단 */}
+      {/* 타입 라벨 - 왼쪽 중앙 */}
       {typeLabel && (
-        <div className="absolute bottom-2 right-2 text-2xl font-bold text-gray-400 select-none pointer-events-none">
+        <div className="absolute left-3 top-1/2 transform -translate-y-1/2 text-xl font-bold text-gray-400 select-none pointer-events-none w-8 flex items-center justify-center">
           {typeLabel}
         </div>
       )}
       
       <CardHeader className="pb-1 px-3 pt-3 flex-1">
-        <div className="flex flex-col h-full">
-          {/* 파일명 - 최대한 공간 활용 */}
-          <div className="flex-1 min-h-0">
+        <div className="flex items-center h-full">
+          {/* 파일명 - 왼쪽에 배치, 타입 라벨 공간 확보 */}
+          <div className="flex-1 min-w-0 pr-8 pl-10">
             <CardTitle
-              className="font-semibold leading-tight text-sm mb-2" 
-              title={document.name}
-              style={{
-                display: '-webkit-box',
-                WebkitLineClamp: 3, // 3줄까지 표시
-                WebkitBoxOrient: 'vertical',
-                overflow: 'hidden',
-                wordBreak: 'break-all',
-                lineHeight: '1.3'
-              }}
+              className="font-semibold leading-tight text-sm truncate" 
+              title={document.fileName || document.name}
             >
-              {document.name}
+              {document.fileName || document.name}
             </CardTitle>
+            
+            {/* 업로더와 날짜 정보 */}
+            <div className="mt-1 flex items-center gap-2 text-xs text-gray-500">
+              <span>
+                {new Date(document.uploadDate).toLocaleDateString("ko-KR")}
+              </span>
+              {document.uploader && (
+                <>
+                  <span>•</span>
+                  <span>by {document.uploader}</span>
+                </>
+              )}
+            </div>
           </div>
           
-          {/* 버튼들과 날짜를 하단에 고정 */}
-          <div className="mt-auto">
-            {/* 버튼들 */}
-            <div className="flex gap-1 mb-2">
-              {onDownload && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={onDownload}
-                  className="h-6 w-6 p-0 hover:bg-blue-100"
-                  title="다운로드"
-                >
-                  <Download className="h-3 w-3" />
-                </Button>
-              )}
-              {onMemoClick && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={onMemoClick}
-                  className="h-6 w-6 p-0 hover:bg-yellow-100"
-                  title="메모"
-                >
-                  <FileText className="h-3 w-3" />
-                </Button>
-              )}
-              {onDelete && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={onDelete}
-                  disabled={!canDelete}
-                  className={cn(
-                    "h-6 w-6 p-0",
-                    canDelete ? "hover:bg-red-100" : "opacity-50 cursor-not-allowed"
-                  )}
-                  title="삭제"
-                >
-                  <Trash2 className="h-3 w-3" />
-                </Button>
-              )}
-            </div>
-            
-            {/* 날짜와 업로더 */}
-            <div className={cn(
-              "text-xs space-y-1",
-              isChairUpload ? "text-gray-600" : "text-gray-500" // Chair 업로드는 글자색 진하게
-            )}>
-              <p>{new Date(document.uploadDate).toLocaleDateString("ko-KR")}</p>
-              {document.uploader && (
-                <p className="truncate" title={`업로드: ${document.uploader}`}>
-                  by {document.uploader}
-                </p>
-              )}
-            </div>
+          {/* 버튼들 - 오른쪽에 배치 */}
+          <div className="flex-shrink-0 flex items-center gap-1">
+            {onDownload && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={onDownload}
+                className="h-6 w-6 p-0 hover:bg-blue-100"
+                title="다운로드"
+              >
+                <Download className="h-3 w-3" />
+              </Button>
+            )}
+            {onDelete && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={onDelete}
+                disabled={!canDelete}
+                className={cn(
+                  "h-6 w-6 p-0",
+                  canDelete ? "hover:bg-red-100" : "opacity-50 cursor-not-allowed"
+                )}
+                title="삭제"
+              >
+                <Trash2 className="h-3 w-3" />
+              </Button>
+            )}
           </div>
         </div>
       </CardHeader>

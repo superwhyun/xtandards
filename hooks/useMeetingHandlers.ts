@@ -30,11 +30,52 @@ export function useMeetingHandlers(standard: Standard | null, setStandard: (s: S
     const meeting = standard.meetings.find(m => m.id === meetingId);
     if (!meeting) return;
 
+    let extractedTitle = "";
+    
+    // Word 문서이고 기고서 타입인 경우 Title 추출 시도
+    if ((type === 'proposal' || type === 'revision') && 
+        (file.name.toLowerCase().endsWith('.docx') || file.name.toLowerCase().endsWith('.doc'))) {
+      try {
+        const arrayBuffer = await file.arrayBuffer()
+        const mammoth = await import('mammoth')
+        
+        // HTML로 변환해서 표 구조 분석
+        const result = await mammoth.convertToHtml({ arrayBuffer })
+        const html = result.value
+        
+        // HTML을 파싱해서 표에서 Title 찾기
+        const parser = new DOMParser()
+        const doc = parser.parseFromString(html, 'text/html')
+        const tables = doc.querySelectorAll('table')
+        
+        for (const table of tables) {
+          const rows = table.querySelectorAll('tr')
+          for (const row of rows) {
+            const cells = row.querySelectorAll('td, th')
+            for (let i = 0; i < cells.length - 1; i++) {
+              const cellText = cells[i].textContent?.trim().toLowerCase()
+              if (cellText === 'title:' || cellText === 'title') {
+                extractedTitle = cells[i + 1].textContent?.trim() || ""
+                break
+              }
+            }
+            if (extractedTitle) break
+          }
+          if (extractedTitle) break
+        }
+      } catch (error) {
+        console.warn('Title 추출 실패:', file.name, error)
+      }
+    }
+
     const formData = new FormData();
     formData.append('file', file);
     formData.append('acronym', standard.acronym);
     formData.append('meetingId', meetingId);
     formData.append('type', type);
+    if (extractedTitle) {
+      formData.append('extractedTitle', extractedTitle);
+    }
     if (proposalId) {
       formData.append('proposalId', proposalId);
     }
@@ -52,7 +93,8 @@ export function useMeetingHandlers(standard: Standard | null, setStandard: (s: S
       }
       const newDocument: Document = {
         id: `doc-${Date.now()}`,
-        name: result.originalName,
+        name: result.originalName, // 추출된 제목이 들어옴
+        fileName: result.fileName, // 원본 파일명
         type: type as any,
         uploadDate: new Date().toISOString(),
         connections: [],

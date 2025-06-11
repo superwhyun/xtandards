@@ -5,6 +5,11 @@ import path from 'path'
 
 const STANDARDS_FILE = path.join(process.cwd(), 'data', 'standards.json')
 
+// 파일 경로에서 안전하지 않은 문자들을 교체하는 함수
+function sanitizeForPath(str: string): string {
+  return str.replace(/[\/\\:*?"<>|]/g, '_')
+}
+
 export async function POST(request: NextRequest) {
   try {
     const formData = await request.formData()
@@ -12,6 +17,7 @@ export async function POST(request: NextRequest) {
     const acronym = formData.get('acronym') as string
     const meetingId = formData.get('meetingId') as string
     const type = formData.get('type') as string
+    const extractedTitle = formData.get('extractedTitle') as string
 
     if (!file || !acronym || !meetingId || !type) {
       return NextResponse.json(
@@ -38,8 +44,9 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // 업로드 디렉토리 생성
-    const uploadDir = path.join(process.cwd(), 'data', acronym, meetingId)
+    // 업로드 디렉토리 생성 (C 폴더에 저장)
+    const safeMeetingId = sanitizeForPath(meetingId)
+    const uploadDir = path.join(process.cwd(), 'data', acronym, safeMeetingId, 'C')
     if (!existsSync(uploadDir)) {
       await mkdir(uploadDir, { recursive: true })
     }
@@ -81,7 +88,8 @@ export async function POST(request: NextRequest) {
     // 새 기고서 문서 생성
     const newDocument = {
       id: `doc-${timestamp}`,
-      name: file.name,
+      name: extractedTitle && extractedTitle.trim() ? extractedTitle.trim() : file.name, // 추출된 제목 우선 사용
+      fileName: file.name, // 원본 파일명 별도 저장
       type: "proposal",
       uploadDate: new Date().toISOString(),
       connections: [],
@@ -101,6 +109,35 @@ export async function POST(request: NextRequest) {
     standard.meetings[meetingIndex] = meeting
     standard.updatedAt = new Date().toISOString()
     standards.standards[standardIndex] = standard
+
+    // meeting.json도 업데이트 (상위 디렉토리에 있음)
+    const meetingJsonPath = path.join(process.cwd(), 'data', acronym, safeMeetingId, 'meeting.json')
+    let meetingData: any = {}
+    
+    if (existsSync(meetingJsonPath)) {
+      const data = readFileSync(meetingJsonPath, 'utf8')
+      meetingData = JSON.parse(data)
+    } else {
+      // 기본 meeting.json 구조 생성
+      meetingData = {
+        proposals: [],
+        revisions: {},
+        resultRevisions: [],
+        previousDocument: null,
+        resultDocument: null,
+        memos: {}
+      }
+    }
+
+    // 새 기고서를 meeting.json에도 추가
+    if (!Array.isArray(meetingData.proposals)) {
+      meetingData.proposals = []
+    }
+    meetingData.proposals.push(newDocument)
+    meetingData.updatedAt = new Date().toISOString()
+
+    // meeting.json 저장
+    writeFileSync(meetingJsonPath, JSON.stringify(meetingData, null, 2))
 
     // 파일에 저장
     writeFileSync(STANDARDS_FILE, JSON.stringify(standards, null, 2))

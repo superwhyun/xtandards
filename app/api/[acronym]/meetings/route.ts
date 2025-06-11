@@ -4,9 +4,15 @@ import path from 'path'
 
 const STANDARDS_FILE = path.join(process.cwd(), 'data', 'standards.json')
 
+// 파일 경로에서 안전하지 않은 문자들을 교체하는 함수
+function sanitizeForPath(str: string): string {
+  return str.replace(/[\/\\:*?"<>|]/g, '_')
+}
+
 // 특정 회의의 상세 정보 로드
-function loadMeetingDetails(acronym: string, meetingTitle: string) {
-  const meetingFile = path.join(process.cwd(), 'data', acronym, meetingTitle, 'meeting.json')
+function loadMeetingDetails(acronym: string, meetingId: string) {
+  const safeMeetingId = sanitizeForPath(meetingId)
+  const meetingFile = path.join(process.cwd(), 'data', acronym, safeMeetingId, 'meeting.json')
   
   if (!fs.existsSync(meetingFile)) {
     // meeting.json이 없으면 기본 구조 반환
@@ -25,7 +31,7 @@ function loadMeetingDetails(acronym: string, meetingTitle: string) {
     const meetingData = JSON.parse(data)
     return meetingData
   } catch (error) {
-    console.error(`회의 데이터 로드 오류 (${acronym}/${meetingTitle}):`, error)
+    console.error(`회의 데이터 로드 오류 (${acronym}/${safeMeetingId}):`, error)
     return {
       proposals: [],
       revisions: {},
@@ -59,10 +65,14 @@ export async function GET(
     
     // 각 회의에 상세 정보 추가
     const meetingsWithDetails = standard.meetings.map((meeting: any) => {
-      const meetingDetails = loadMeetingDetails(acronym, meeting.title)
+      const meetingDetails = loadMeetingDetails(acronym, meeting.id)
       return {
-        ...meeting,
-        ...meetingDetails
+        ...meetingDetails,  // meeting.json 데이터 먼저
+        ...meeting,         // standards.json 데이터 나중 (메타데이터만 덮어쓰기)
+        // meeting.json의 proposals 데이터가 우선되도록 명시적으로 설정
+        proposals: meetingDetails.proposals || [],
+        revisions: meetingDetails.revisions || {},
+        memos: meetingDetails.memos || {}
       }
     })
     

@@ -122,6 +122,11 @@ standard_document_management:
     - localStorage 의존성 완전 제거 및 좀비 코드 정리
     - Dialog 컴포넌트들의 localStorage fallback 코드 제거
     - 표준문서 데이터 조회 API 개선 (개별 표준문서 조회)
+    - 기고서 상태 변경 서버 반영 API 구현 (/api/[acronym]/proposal-status)
+    - Output Document 영역에 Accepted/Rejected 상태별 분리 표시
+    - 메모 기능을 Chair 전용 및 결정된 상태(Accept/Reject)에서만 작동하도록 개선
+    - 거절된 기고서들 목록을 Output Document 영역에 별도 표시
+    - 메모 레이블을 상태별로 구분 (승인 논의 메모 / 거절 사유)
 
   TODO:
     - 표준문서 삭제 시 서버의 data 폴더도 함께 삭제하는 API 구현

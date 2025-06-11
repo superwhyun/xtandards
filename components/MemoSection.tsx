@@ -50,15 +50,15 @@ export default function MemoSection({
   if (!isExpanded) return null;
 
   return (
-    <div className="mt-4 border-t pt-4">
-      <label className="block text-sm font-medium text-gray-700 mb-2">
-        메모 (기고서: {proposal.name})
+    <div className="mt-4 border-t border-gray-600 pt-4">
+      <label className="block text-sm font-medium text-gray-200 mb-2">
+        회의 논의 내용 (기고서: {proposal.name})
       </label>
       <textarea
         ref={textareaRef}
-        className="w-full p-3 border border-gray-300 rounded-lg resize-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+        className="w-full p-3 border border-gray-300 rounded-lg resize-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900 bg-white"
         rows={3}
-        placeholder="이 기고서에 대한 메모를 입력하세요..."
+        placeholder="이 기고서에 대한 회의 논의 내용을 입력하세요..."
         defaultValue={memo}
         onChange={handleChange}
         onBlur={handleBlur}

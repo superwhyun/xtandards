@@ -5,6 +5,11 @@ import path from 'path'
 
 const STANDARDS_FILE = path.join(process.cwd(), 'data', 'standards.json')
 
+// 파일 경로에서 안전하지 않은 문자들을 교체하는 함수
+function sanitizeForPath(str: string): string {
+  return str.replace(/[\/\\:*?"<>|]/g, '_')
+}
+
 export async function POST(request: NextRequest) {
   try {
     const formData = await request.formData()
@@ -13,6 +18,7 @@ export async function POST(request: NextRequest) {
     const meetingId = formData.get('meetingId') as string
     const type = formData.get('type') as string
     const proposalId = formData.get('proposalId') as string | null
+    const extractedTitle = formData.get('extractedTitle') as string | null
 
     if (!file || !acronym || !meetingId || !type) {
       return NextResponse.json(
@@ -49,6 +55,7 @@ export async function POST(request: NextRequest) {
     }
 
     const meetingTitle = meeting.title
+    const safeMeetingId = sanitizeForPath(meetingId)
 
     // 파일 확장자 검증
     const allowedExtensions = ['.pdf', '.doc', '.docx', '.txt']
@@ -75,15 +82,15 @@ export async function POST(request: NextRequest) {
     
     if (type === 'result' || type === 'result-revision') {
       // Output Document는 OD 폴더에
-      uploadDir = path.join(process.cwd(), 'data', acronym, meetingTitle, 'OD')
+      uploadDir = path.join(process.cwd(), 'data', acronym, safeMeetingId, 'OD')
       fileName = type === 'result' ? `output_${timestamp}_${file.name}` : `output_rev_${timestamp}_${file.name}`
     } else if (type === 'base') {
       // Base Document는 루트에 (실제로는 저장하지 않지만 호환성을 위해)
-      uploadDir = path.join(process.cwd(), 'data', acronym, meetingTitle)
+      uploadDir = path.join(process.cwd(), 'data', acronym, safeMeetingId)
       fileName = `base_${timestamp}_${file.name}`
     } else {
       // 기고서와 수정본은 C 폴더에
-      uploadDir = path.join(process.cwd(), 'data', acronym, meetingTitle, 'C')
+      uploadDir = path.join(process.cwd(), 'data', acronym, safeMeetingId, 'C')
       fileName = type === 'proposal' ? `${timestamp}_${file.name}` : `${type}_${timestamp}_${file.name}`
     }
     
@@ -98,7 +105,7 @@ export async function POST(request: NextRequest) {
     await writeFile(filePath, buffer)
 
     // meeting.json 업데이트
-    const meetingJsonPath = path.join(process.cwd(), 'data', acronym, meetingTitle, 'meeting.json')
+    const meetingJsonPath = path.join(process.cwd(), 'data', acronym, safeMeetingId, 'meeting.json')
     let meetingData: any = {}
     
     if (existsSync(meetingJsonPath)) {
@@ -118,12 +125,13 @@ export async function POST(request: NextRequest) {
 
     // 상대 경로 생성 (다운로드용)
     const folderName = (type === 'result' || type === 'result-revision') ? 'OD' : (type === 'base' ? '' : 'C')
-    const relativePath = folderName ? path.join('data', acronym, meetingTitle, folderName, fileName) : path.join('data', acronym, meetingTitle, fileName)
+    const relativePath = folderName ? path.join('data', acronym, safeMeetingId, folderName, fileName) : path.join('data', acronym, safeMeetingId, fileName)
 
     // 새 문서 정보 추가
     const newDocument = {
       id: `doc-${Date.now()}`,
-      name: file.name,
+      name: extractedTitle && extractedTitle.trim() ? extractedTitle.trim() : file.name, // 추출된 제목 우선 사용
+      fileName: file.name, // 원본 파일명 별도 저장
       type: type,
       uploadDate: new Date().toISOString(),
       connections: [],
@@ -164,7 +172,8 @@ export async function POST(request: NextRequest) {
       success: true,
       filePath: relativePath,
       fileName: file.name,
-      originalName: file.name,
+      originalName: extractedTitle && extractedTitle.trim() ? extractedTitle.trim() : file.name, // 추출된 제목 우선 반환
+      extractedTitle: extractedTitle || '',
       size: file.size,
       type: fileExtension
     })

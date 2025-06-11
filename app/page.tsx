@@ -28,6 +28,7 @@ interface Standard {
 interface UploadedProposal {
   name: string
   file: File
+  extractedTitle: string
 }
 
 const getStoredStandards = async (): Promise<Standard[]> => {
@@ -306,33 +307,38 @@ export default function Page() {
       agendaContent += `생성일: ${new Date().toLocaleDateString('ko-KR')}\n\n`
       
       // 모든 표준문서에서 해당 회의명과 일치하는 회의들 찾기
-      allStandards.forEach((standard: any) => {
-        if (!Array.isArray(standard.meetings)) return
+      for (const standard of allStandards) {
+        if (!Array.isArray(standard.meetings)) continue
         
         const targetMeeting = standard.meetings.find((m: any) => m.title === meetingTitle)
-        if (!targetMeeting) return
+        if (!targetMeeting) continue
+        
+        // 각 표준문서의 회의 상세 정보 가져오기 (meeting.json 포함)
+        console.log(`API 호출: GET /api/${standard.acronym}/meetings`)
+        const detailResponse = await fetch(`/api/${standard.acronym}/meetings`)
+        if (!detailResponse.ok) continue
+        
+        const detailData = await detailResponse.json()
+        const detailedMeeting = detailData.meetings.find((m: any) => m.title === meetingTitle)
+        if (!detailedMeeting) continue
         
         agendaContent += `## ${standard.acronym} - ${standard.title}\n`
-        agendaContent += `### ${meetingTitle}\n`
-        if (targetMeeting.startDate && targetMeeting.endDate) {
-          agendaContent += `기간: ${new Date(targetMeeting.startDate).toLocaleDateString('ko-KR')} ~ ${new Date(targetMeeting.endDate).toLocaleDateString('ko-KR')}\n`
-        }
         agendaContent += `\n`
         
         // 기존 베이스라인 문서
-        if (targetMeeting.previousDocument) {
+        if (detailedMeeting.previousDocument) {
           agendaContent += `#### 기존 베이스라인 문서\n`
-          agendaContent += `- ${targetMeeting.previousDocument.name}\n\n`
+          agendaContent += `- ${detailedMeeting.previousDocument.name}\n\n`
         }
         
         // 기고서 문서들
-        if (targetMeeting.proposals && targetMeeting.proposals.length > 0) {
+        if (detailedMeeting.proposals && detailedMeeting.proposals.length > 0) {
           agendaContent += `#### 기고서 문서들\n`
-          targetMeeting.proposals.forEach((proposal: any, index: number) => {
+          detailedMeeting.proposals.forEach((proposal: any, index: number) => {
             agendaContent += `${index + 1}. ${proposal.name}\n`
             // 수정본들도 포함
-            if (targetMeeting.revisions && targetMeeting.revisions[proposal.id]) {
-              targetMeeting.revisions[proposal.id].forEach((revision: any, revIndex: number) => {
+            if (detailedMeeting.revisions && detailedMeeting.revisions[proposal.id]) {
+              detailedMeeting.revisions[proposal.id].forEach((revision: any, revIndex: number) => {
                 agendaContent += `   - 수정본 ${revIndex + 1}: ${revision.name}\n`
               })
             }
@@ -344,7 +350,7 @@ export default function Page() {
         }
         
         agendaContent += `---\n\n`
-      })
+      }
       
       // Agenda 파일 다운로드
       const blob = new Blob([agendaContent], { type: 'text/plain;charset=utf-8' })
@@ -379,44 +385,46 @@ export default function Page() {
       minutesContent += `생성일: ${new Date().toLocaleDateString('ko-KR')}\n\n`
       
       // 모든 표준문서에서 해당 회의명과 일치하는 회의들 찾기
-      allStandards.forEach((standard: any) => {
-        if (!Array.isArray(standard.meetings)) return
+      for (const standard of allStandards) {
+        if (!Array.isArray(standard.meetings)) continue
         
         const targetMeeting = standard.meetings.find((m: any) => m.title === meetingTitle)
-        if (!targetMeeting) return
+        if (!targetMeeting) continue
+        
+        // 각 표준문서의 회의 상세 정보 가져오기 (meeting.json 포함)
+        console.log(`API 호출: GET /api/${standard.acronym}/meetings`)
+        const detailResponse = await fetch(`/api/${standard.acronym}/meetings`)
+        if (!detailResponse.ok) continue
+        
+        const detailData = await detailResponse.json()
+        const detailedMeeting = detailData.meetings.find((m: any) => m.title === meetingTitle)
+        if (!detailedMeeting) continue
         
         minutesContent += `## ${standard.acronym} - ${standard.title}\n`
-        minutesContent += `### ${meetingTitle}\n`
-        if (targetMeeting.startDate && targetMeeting.endDate) {
-          minutesContent += `기간: ${new Date(targetMeeting.startDate).toLocaleDateString('ko-KR')} ~ ${new Date(targetMeeting.endDate).toLocaleDateString('ko-KR')}\n`
-        }
-        if (targetMeeting.description) {
-          minutesContent += `설명: ${targetMeeting.description}\n`
-        }
         minutesContent += `\n`
         
         // 기존 베이스라인 문서
-        if (targetMeeting.previousDocument) {
+        if (detailedMeeting.previousDocument) {
           minutesContent += `#### 기존 베이스라인 문서\n`
-          minutesContent += `- ${targetMeeting.previousDocument.name}\n\n`
+          minutesContent += `- ${detailedMeeting.previousDocument.name}\n\n`
         }
         
         // 기고서 문서들과 논의 내용
-        if (targetMeeting.proposals && targetMeeting.proposals.length > 0) {
+        if (detailedMeeting.proposals && detailedMeeting.proposals.length > 0) {
           minutesContent += `#### 기고서 문서들 및 논의 내용\n`
-          targetMeeting.proposals.forEach((proposal: any, index: number) => {
+          detailedMeeting.proposals.forEach((proposal: any, index: number) => {
             minutesContent += `${index + 1}. ${proposal.name}\n`
             
             // 수정본들
-            if (targetMeeting.revisions && targetMeeting.revisions[proposal.id]) {
-              targetMeeting.revisions[proposal.id].forEach((revision: any, revIndex: number) => {
+            if (detailedMeeting.revisions && detailedMeeting.revisions[proposal.id]) {
+              detailedMeeting.revisions[proposal.id].forEach((revision: any, revIndex: number) => {
                 minutesContent += `   - 수정본 ${revIndex + 1}: ${revision.name}\n`
               })
             }
             
-            // 메모 (논의 내용)
-            if (targetMeeting.memos && targetMeeting.memos[proposal.id]) {
-              minutesContent += `   ${targetMeeting.memos[proposal.id]}\n`
+            // 메모 (논의 내용) - bullet point로 작성
+            if (detailedMeeting.memos && detailedMeeting.memos[proposal.id]) {
+              minutesContent += `   - 회의 논의 내용:\n\`\`\`\n${detailedMeeting.memos[proposal.id]}\n\`\`\`\n`
             }
             
             minutesContent += `\n`
@@ -427,13 +435,13 @@ export default function Page() {
         }
         
         // Output 문서
-        if (targetMeeting.resultDocument) {
+        if (detailedMeeting.resultDocument) {
           minutesContent += `#### Output 문서\n`
-          minutesContent += `- ${targetMeeting.resultDocument.name}\n`
+          minutesContent += `- ${detailedMeeting.resultDocument.name}\n`
           
           // Output 수정본들
-          if (targetMeeting.resultRevisions && targetMeeting.resultRevisions.length > 0) {
-            targetMeeting.resultRevisions.forEach((revision: any, index: number) => {
+          if (detailedMeeting.resultRevisions && detailedMeeting.resultRevisions.length > 0) {
+            detailedMeeting.resultRevisions.forEach((revision: any, index: number) => {
               minutesContent += `- 수정본 ${index + 1}: ${revision.name}\n`
             })
           }
@@ -441,7 +449,7 @@ export default function Page() {
         }
         
         minutesContent += `---\n\n`
-      })
+      }
       
       // 회의록 파일 다운로드
       const blob = new Blob([minutesContent], { type: 'text/plain;charset=utf-8' })
@@ -470,10 +478,53 @@ export default function Page() {
   }, [])  // 인증 관련 코드 제거
 
   const handleProposalUpload = async (files: FileList) => {
-    const newProposals = Array.from(files).map(file => ({
-      name: file.name,
-      file: file
-    }))
+    const newProposals = []
+    
+    for (const file of Array.from(files)) {
+      let extractedTitle = ""
+      
+      // Word 문서인 경우 Title 추출 시도
+      if (file.name.toLowerCase().endsWith('.docx') || file.name.toLowerCase().endsWith('.doc')) {
+        try {
+          const arrayBuffer = await file.arrayBuffer()
+          const mammoth = await import('mammoth')
+          
+          // HTML로 변환해서 표 구조 분석
+          const result = await mammoth.convertToHtml({ arrayBuffer })
+          const html = result.value
+          
+          // HTML을 파싱해서 표에서 Title 찾기
+          const parser = new DOMParser()
+          const doc = parser.parseFromString(html, 'text/html')
+          const tables = doc.querySelectorAll('table')
+          
+          for (const table of tables) {
+            const rows = table.querySelectorAll('tr')
+            for (const row of rows) {
+              const cells = row.querySelectorAll('td, th')
+              for (let i = 0; i < cells.length - 1; i++) {
+                const cellText = cells[i].textContent?.trim().toLowerCase()
+                if (cellText === 'title:' || cellText === 'title') {
+                  extractedTitle = cells[i + 1].textContent?.trim() || ""
+                  break
+                }
+              }
+              if (extractedTitle) break
+            }
+            if (extractedTitle) break
+          }
+        } catch (error) {
+          console.warn('Title 추출 실패:', file.name, error)
+        }
+      }
+      
+      newProposals.push({
+        name: file.name,
+        file: file,
+        extractedTitle: extractedTitle || file.name // Title 추출 실패시 파일명 사용
+      })
+    }
+    
     setUploadedProposals(prev => [...prev, ...newProposals])
   }
 
@@ -513,6 +564,7 @@ export default function Page() {
       formData.append('acronym', standardAcronym)
       formData.append('meetingId', targetMeeting.id)
       formData.append('type', 'proposal')
+      formData.append('extractedTitle', proposal.extractedTitle || '')
 
       console.log('API 호출: POST /api/proposal')
       const uploadResponse = await fetch('/api/proposal', {
@@ -530,6 +582,10 @@ export default function Page() {
 
       // 업로드 성공시 업로드된 기고서 목록에서 제거
       setUploadedProposals(prev => prev.filter((_, index) => index !== proposalIndex))
+      
+      // 표준문서 목록도 즉시 새로고침해서 UI에 반영
+      const updatedStandards = await getStoredStandards()
+      setStandards(updatedStandards)
       
       alert('기고서가 업로드되었습니다.')
 
@@ -860,12 +916,23 @@ export default function Page() {
                   >
                     <div className="flex items-center gap-3">
                       <FileText className="h-5 w-5 text-blue-600 flex-shrink-0" />
-                      <div className="flex-1 min-w-0">
+                    <div className="flex-1 min-w-0">
+                      {proposal.extractedTitle && proposal.extractedTitle !== proposal.name ? (
+                        <>
+                          <p className="text-sm font-medium text-blue-600 break-words" title={proposal.extractedTitle}>
+                            {proposal.extractedTitle}
+                          </p>
+                          <p className="text-xs text-gray-500 truncate" title={proposal.name}>
+                            {proposal.name}
+                          </p>
+                        </>
+                      ) : (
                         <p className="text-sm font-medium text-gray-900 truncate" title={proposal.name}>
                           {proposal.name}
                         </p>
-                        <p className="text-xs text-gray-500">드래그하여 표준문서에 추가</p>
-                      </div>
+                      )}
+                      <p className="text-xs text-gray-500">드래그하여 표준문서에 추가</p>
+                    </div>
                       <button
                         onClick={() => setUploadedProposals(prev => prev.filter((_, i) => i !== index))}
                         className="text-red-500 hover:text-red-700"

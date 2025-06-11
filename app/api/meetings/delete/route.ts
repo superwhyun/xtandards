@@ -4,6 +4,11 @@ import path from 'path'
 
 const STANDARDS_FILE = path.join(process.cwd(), 'data', 'standards.json')
 
+// 파일 경로에서 안전하지 않은 문자들을 교체하는 함수
+function sanitizeForPath(str: string): string {
+  return str.replace(/[\/\\:*?"<>|]/g, '_')
+}
+
 // 회의 삭제
 export async function DELETE(request: NextRequest) {
   try {
@@ -44,8 +49,9 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: '완료된 회의는 삭제할 수 없습니다' }, { status: 400 })
     }
     
-    // 회의 폴더 삭제 (타이틀명 기반)
-    const meetingDir = path.join(process.cwd(), 'data', acronym, meeting.title)
+    // 회의 폴더 삭제 (meetingId 기반)
+    const safeMeetingId = sanitizeForPath(meetingId)
+    const meetingDir = path.join(process.cwd(), 'data', acronym, safeMeetingId)
     if (fs.existsSync(meetingDir)) {
       fs.rmSync(meetingDir, { recursive: true, force: true })
     }

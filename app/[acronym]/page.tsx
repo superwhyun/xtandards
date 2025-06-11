@@ -20,7 +20,7 @@ import ConnectionLine from "@/components/ConnectionLine"
 import StatusSelector from "@/components/StatusSelector"
 import NewMeetingDialog from "@/components/NewMeetingDialog"
 import EditMeetingDialog from "@/components/EditMeetingDialog"
-import MeetingTab from "@/components/MeetingTab"
+import NewMeetingTab from "@/components/NewMeetingTab"
 import LoginScreen, { UserRole, AuthState } from "@/components/auth/LoginScreen"
 import SettingsDialog from "@/components/auth/SettingsDialog"
 import { useMeetingHandlers } from "@/hooks/useMeetingHandlers"
@@ -315,33 +315,60 @@ const { handleEditMeeting, handleSaveMeeting, handleFileUpload } = useMeetingHan
       alert('파일 삭제 중 오류가 발생했습니다')
     }
   }, [standard])
-  const handleStatusChange = useCallback((meetingId: string, proposalId: string, status: "accepted" | "review" | "rejected") => {
+  const handleStatusChange = useCallback(async (meetingId: string, proposalId: string, status: "accepted" | "review" | "rejected") => {
     if (!standard) return
     
-    const updatedStandard = {
-      ...standard,
-      meetings: standard.meetings.map((meeting) => {
-        if (meeting.id === meetingId) {
-          return {
-            ...meeting,
-            proposals: meeting.proposals.map((proposal) =>
-              proposal.id === proposalId ? { ...proposal, status } : proposal
-            ),
-            revisions: Object.fromEntries(
-              Object.entries(meeting.revisions).map(([propId, revs]) => [
-                propId,
-                propId === proposalId
-                  ? (Array.isArray(revs) ? revs.map((rev: any) => ({ ...rev, status })) : revs)
-                  : revs
-              ])
-            )
+    try {
+      // 서버에 상태 변경 요청
+      console.log(`API 호출: PUT /api/${acronym}/proposal-status`)
+      const response = await fetch(`/api/${acronym}/proposal-status`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          meetingId,
+          proposalId,
+          status
+        })
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        alert(`상태 변경 실패: ${errorData.error}`)
+        return
+      }
+
+      // 성공시 로컬 상태 업데이트
+      const updatedStandard = {
+        ...standard,
+        meetings: standard.meetings.map((meeting) => {
+          if (meeting.id === meetingId) {
+            return {
+              ...meeting,
+              proposals: meeting.proposals.map((proposal) =>
+                proposal.id === proposalId ? { ...proposal, status } : proposal
+              ),
+              revisions: Object.fromEntries(
+                Object.entries(meeting.revisions).map(([propId, revs]) => [
+                  propId,
+                  propId === proposalId
+                    ? (Array.isArray(revs) ? revs.map((rev: any) => ({ ...rev, status })) : revs)
+                    : revs
+                ])
+              )
+            }
           }
-        }
-        return meeting
-      }),
+          return meeting
+        }),
+      }
+      setStandard(updatedStandard)
+      
+    } catch (error) {
+      console.error('상태 변경 오류:', error)
+      alert('상태 변경 중 오류가 발생했습니다')
     }
-    updateStandard(updatedStandard)
-  }, [standard])
+  }, [standard, acronym])
 
   // 회의 완료/되돌리기 핸들러
   const handleMeetingToggle = useCallback(async (meetingId: string) => {
@@ -393,7 +420,51 @@ const { handleEditMeeting, handleSaveMeeting, handleFileUpload } = useMeetingHan
     }
   }, [standard])
 
-  // 회의 삭제 핸들러
+  // 기고서 순서 변경 핸들러
+  const handleProposalReorder = useCallback(async (meetingId: string, reorderedProposals: any[]) => {
+    if (!standard) return
+
+    try {
+      // 서버에 순서 변경 요청
+      console.log('API 호출: PUT /api/proposal-order')
+      const response = await fetch('/api/proposal-order', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          acronym: standard.acronym,
+          meetingId,
+          proposals: reorderedProposals
+        })
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        alert(`순서 변경 실패: ${errorData.error}`)
+        return
+      }
+
+      // 성공시 로컬 상태 업데이트
+      const updatedStandard = {
+        ...standard,
+        meetings: standard.meetings.map((meeting) => {
+          if (meeting.id === meetingId) {
+            return {
+              ...meeting,
+              proposals: reorderedProposals
+            }
+          }
+          return meeting
+        }),
+      }
+      setStandard(updatedStandard)
+      
+    } catch (error) {
+      console.error('순서 변경 오류:', error)
+      alert('순서 변경 중 오류가 발생했습니다')
+    }
+  }, [standard])
   const handleDeleteMeeting = useCallback(async (meetingId: string) => {
     if (!standard) return
     
@@ -550,435 +621,34 @@ const { handleEditMeeting, handleSaveMeeting, handleFileUpload } = useMeetingHan
       </div>
     )
   }
-
-
-function ConnectionLine({ 
-  fromAccepted = true, 
-  variant = "default" 
-}: { 
-  fromAccepted?: boolean
-  variant?: "default" | "small"
-}) {
-  const lineWidth = variant === "small" ? "w-6" : "w-8"
-  const lineColor = fromAccepted ? "from-green-400 to-blue-400" : "from-gray-300 to-gray-400"
-  const arrowColor = fromAccepted ? "text-blue-500" : "text-gray-400"
-
-  return (
-    <div className="flex items-center justify-center px-2">
-      <div className={cn("h-0.5 bg-gradient-to-r relative", lineWidth, lineColor)}>
-        <ArrowRight className={cn("h-3 w-3 absolute -right-1 -top-1", arrowColor)} />
-      </div>
-    </div>
-  )
-}
-
-function StatusSelector({
-  currentStatus,
-  onStatusChange,
-}: {
-  currentStatus?: string
-  onStatusChange: (status: "accepted" | "review" | "rejected") => void
-}) {
-  return (
-    <div className="flex flex-col gap-2 p-4 bg-gray-50 rounded-lg border-2 border-dashed border-gray-300">
-      <p className="text-sm font-medium text-gray-700 mb-2">상태 선택</p>
-      <div className="flex flex-col gap-1">
-        <Button
-          variant={currentStatus === "accepted" ? "default" : "outline"}
-          size="sm"
-          onClick={() => onStatusChange("accepted")}
-          className={cn(
-            "w-full justify-start",
-            currentStatus === "accepted" && "bg-green-500 hover:bg-green-600"
-          )}
-        >
-          ✓ Accept
-        </Button>
-        <Button
-          variant={currentStatus === "review" ? "default" : "outline"}
-          size="sm"
-          onClick={() => onStatusChange("review")}
-          className={cn(
-            "w-full justify-start",
-            currentStatus === "review" && "bg-yellow-500 hover:bg-yellow-600"
-          )}
-        >
-          ⏸ Review
-        </Button>
-        <Button
-          variant={currentStatus === "rejected" ? "default" : "outline"}
-          size="sm"
-          onClick={() => onStatusChange("rejected")}
-          className={cn(
-            "w-full justify-start",
-            currentStatus === "rejected" && "bg-red-500 hover:bg-red-600"
-          )}
-        >
-          ✗ Reject
-        </Button>
-      </div>
-    </div>
-  )
-}
-
-
-// 메모 컴포넌트를 별도로 분리
-
-// MeetingTab 컴포넌트가 함수로 정의되어 있고 JSX가 함수 내에 포함되어 있어야 함
-function MeetingTab({
-  meeting,
-  acronym,
-  userRole,
-  onFileUpload,
-  onComplete,
-  onStatusChange,
-  onFileDelete,
-  onMemoToggle,
-  onMemoUpdate,
-  expandedMemos,
-}: {
-  meeting: Meeting
-  acronym: string
-  userRole: UserRole
-  onFileUpload: (files: FileList, type: string, proposalId?: string) => void
-  onComplete: () => void
-  onStatusChange: (proposalId: string, status: "accepted" | "review" | "rejected") => void
-  onFileDelete: (documentId: string, type: string, proposalId?: string, filePath?: string) => void
-  onMemoToggle: (proposalId: string) => void
-  onMemoUpdate: (proposalId: string, memo: string) => void
-  expandedMemos: { [key: string]: boolean }
-}) {
-  const [localMemos, setLocalMemos] = useState<{ [key: string]: string }>({})
-  const [hasInitialized, setHasInitialized] = useState(false)
-
-  // 컴포넌트 마운트시 기존 메모 로드 (한 번만)
-  useEffect(() => {
-    if (!hasInitialized && meeting.memos) {
-      setLocalMemos(meeting.memos)
-      setHasInitialized(true)
-    }
-  }, [meeting.memos, hasInitialized])
-
-  const handleDownload = (filePath: string, fileName: string) => {
-    const downloadUrl = `/api/download?path=${encodeURIComponent(filePath)}&name=${encodeURIComponent(fileName)}`
-    const link = document.createElement('a')
-    link.href = downloadUrl
-    link.download = fileName
-    document.body.appendChild(link)
-    link.click()
-    document.body.removeChild(link)
-  }
-
-  const handleMemoChange = useCallback((proposalId: string, value: string) => {
-    setLocalMemos(prev => ({
-      ...prev,
-      [proposalId]: value
-    }))
-  }, [])
-
-  const handleMemoBlur = useCallback((proposalId: string, value: string) => {
-    onMemoUpdate(proposalId, value)
-    console.log('메모 저장 (blur):', proposalId, value) // 디버깅용
-  }, [onMemoUpdate])
-
-  return (
-    <div className="space-y-8">
-      {/* 좌우 고정폭, 중앙 가변폭 구조 */}
-      <div className="flex flex-col lg:flex-row gap-6 min-h-[500px]">
-        {/* Base Document - 고정폭 */}
-        <div className="lg:w-56 lg:flex-shrink-0">
-          <div className="lg:sticky lg:top-4">
-            <div className="bg-slate-100 rounded-lg p-3 mb-4">
-              <h3 className="font-bold text-lg text-slate-800 flex items-center gap-2">
-                <div className="w-3 h-3 bg-slate-600 rounded-full"></div>
-                Base Document
-              </h3>
-            </div>
-            {meeting.previousDocument ? (
-              <div className="flex justify-center lg:justify-start">
-                <DocumentCard 
-                  document={meeting.previousDocument} 
-                  onDownload={() => handleDownload(meeting.previousDocument!.filePath!, meeting.previousDocument!.name)}
-                  onDelete={() => onFileDelete(meeting.previousDocument!.id, "base", undefined, meeting.previousDocument!.filePath)}
-                  canDelete={true}
-                />
-              </div>
-            ) : (
-              !meeting.isCompleted && userRole === 'chair' ? (
-                <div className="flex justify-center lg:justify-start">
-                  <DropZone onDrop={(files) => onFileUpload(files, "base")} className="w-48 h-40">
-                    <div className="text-center">
-                      <div className="bg-slate-100 rounded-full p-3 mb-2 mx-auto w-fit">
-                        <Upload className="h-6 w-6 text-slate-600" />
-                      </div>
-                      <p className="text-slate-700 font-medium text-sm">Base 문서가 없습니다</p>
-                      <p className="text-slate-600 text-xs mt-1">파일을 드래그하여 업로드</p>
-                    </div>
-                  </DropZone>
-                </div>
-              ) : (
-                <Card className="w-48 h-40 border-2 border-dashed border-gray-200 bg-gradient-to-br from-gray-50 to-slate-50 mx-auto xl:mx-0">
-                  <CardContent className="h-full flex items-center justify-center">
-                    <div className="text-center text-gray-400">
-                      <FileText className="h-8 w-8 mx-auto mb-2 opacity-50" />
-                      <p className="text-sm">Base 문서 없음</p>
-                    </div>
-                  </CardContent>
-                </Card>
-              )
-            )}
-          </div>
-        </div>
-
-        {/* 기고서 및 수정본 - 가변폭 */}
-        <div className="flex-1 min-w-0">
-          <div className="bg-blue-100 rounded-lg p-3 mb-4">
-            <h3 className="font-bold text-lg text-blue-800 flex items-center gap-2">
-              <div className="w-3 h-3 bg-blue-600 rounded-full"></div>
-              기고서 및 수정본
-            </h3>
-          </div>
-          <div className="space-y-6">
-            {meeting.proposals.map((proposal) => (
-              <div key={proposal.id} className="bg-white rounded-2xl p-6 shadow-md border border-gray-200">
-                <div className="flex items-center gap-4 overflow-x-auto pb-4 custom-scrollbar">
-                  {/* 기고서 */}
-                  <div className="flex-shrink-0">
-                    <DocumentCard 
-                      document={proposal} 
-                      showConnections={true} 
-                      onDownload={() => handleDownload(proposal.filePath!, proposal.name)}
-                      onDelete={() => onFileDelete(proposal.id, "proposal", proposal.id, proposal.filePath)}
-                      onMemoClick={() => onMemoToggle(proposal.id)}
-                      canDelete={!meeting.revisions[proposal.id] || meeting.revisions[proposal.id].length === 0}
-                    />
-                  </div>
-
-                  {/* 수정본들 */}
-                  {meeting.revisions[proposal.id]?.map((revision, index) => {
-                    const isLastRevision = index === meeting.revisions[proposal.id].length - 1
-                    return (
-                      <div key={revision.id} className="flex-shrink-0">
-                        <DocumentCard 
-                          document={revision} 
-                          onDownload={() => handleDownload(revision.filePath!, revision.name)}
-                          onDelete={() => onFileDelete(revision.id, "revision", proposal.id, revision.filePath)}
-                          canDelete={isLastRevision}
-                          isLatest={isLastRevision}
-                          revisionIndex={index}
-                        />
-                      </div>
-                    )
-                  })}
-
-                  {/* 드롭존 - Accept 상태일 때 숨김 */}
-                  {!meeting.isCompleted && proposal.status !== "accepted" && (
-                    <div className="flex-shrink-0">
-                      <DropZone onDrop={(files) => onFileUpload(files, "revision", proposal.id)} />
-                    </div>
-                  )}
-
-                  {/* 상태선택 (오른쪽 끝) - Chair만 접근 가능 */}
-                  {!meeting.isCompleted && userRole === 'chair' && (
-                    <div className="flex-shrink-0 ml-4">
-                      <StatusSelector
-                        currentStatus={proposal.status}
-                        onStatusChange={(status) => onStatusChange(proposal.id, status)}
-                      />
-                    </div>
-                  )}
-                </div>
-
-                {/* 메모 영역 (새로운 컴포넌트 사용) */}
-                <MemoSection
-                  proposal={proposal}
-                  isExpanded={expandedMemos[proposal.id] || false}
-                  memo={localMemos[proposal.id] || ''}
-                  onMemoChange={(value) => handleMemoChange(proposal.id, value)}
-                  onMemoBlur={(value) => handleMemoBlur(proposal.id, value)}
-                  onMemoToggle={() => onMemoToggle(proposal.id)}
-                />
-              </div>
-            ))}
-
-            {!meeting.isCompleted && (
-              <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-2xl p-6 border-2 border-dashed border-blue-200">
-                <DropZone onDrop={(files) => onFileUpload(files, "proposal")} className="mx-auto">
-                  <div className="text-center">
-                    <div className="bg-blue-100 rounded-full p-4 mb-3 mx-auto w-fit">
-                      <Plus className="h-8 w-8 text-blue-600" />
-                    </div>
-                    <p className="text-blue-700 font-medium">새 기고서 추가</p>
-                    <p className="text-blue-600 text-sm mt-1">파일을 드래그하여 업로드</p>
-                  </div>
-                </DropZone>
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Output Document - 고정폭 */}
-        <div className="lg:w-64 lg:flex-shrink-0">
-          <div className="lg:sticky lg:top-4">
-            <div className="bg-green-100 rounded-lg p-3 mb-4">
-              <h3 className="font-bold text-lg text-green-800 flex items-center gap-2">
-                <div className="w-3 h-3 bg-green-600 rounded-full"></div>
-                Output Document
-              </h3>
-            </div>
-            <div className="space-y-4">
-              {meeting.resultDocument ? (
-                <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100">
-                  <div className="flex flex-col items-center gap-4">
-                    <DocumentCard
-                      document={meeting.resultDocument}
-                      showConnections={true}
-                      onDownload={() => handleDownload(meeting.resultDocument!.filePath!, meeting.resultDocument!.name)}
-                      onDelete={() => onFileDelete(meeting.resultDocument!.id, "result", undefined, meeting.resultDocument!.filePath)}
-                      canDelete={meeting.resultRevisions.length === 0}
-                    />
-
-                    {meeting.resultRevisions.map((revision, index) => {
-                      const isLastRevision = index === meeting.resultRevisions.length - 1
-                      return (
-                        <div key={revision.id} className="flex flex-col items-center gap-2">
-                          <ConnectionLine />
-                          <DocumentCard 
-                            document={revision} 
-                            onDownload={() => handleDownload(revision.filePath!, revision.name)}
-                            onDelete={() => onFileDelete(revision.id, "result-revision", undefined, revision.filePath)}
-                            canDelete={isLastRevision}
-                            isLatest={isLastRevision}
-                            revisionIndex={index}
-                          />
-                        </div>
-                      )
-                    })}
-
-                    {!meeting.isCompleted && userRole === 'chair' && (
-                      <>
-                        <ConnectionLine />
-                        <DropZone onDrop={(files) => onFileUpload(files, "result-revision")} />
-                      </>
-                    )}
-                  </div>
-                </div>
-              ) : (
-                !meeting.isCompleted && userRole === 'chair' && (
-                  <div className="bg-gradient-to-br from-green-50 to-emerald-50 rounded-2xl p-6 border-2 border-dashed border-green-200">
-                    <div className="flex justify-center">
-                      <DropZone onDrop={(files) => onFileUpload(files, "result")} className="mx-auto">
-                        <div className="text-center">
-                          <div className="bg-green-100 rounded-full p-4 mb-3 mx-auto w-fit">
-                            <CheckCircle className="h-8 w-8 text-green-600" />
-                          </div>
-                          <p className="text-green-700 font-medium">Output 문서 업로드</p>
-                          <p className="text-green-600 text-sm mt-1">최종 결과를 업로드하세요</p>
-                        </div>
-                      </DropZone>
-                    </div>
-                  </div>
-                )
-              )}
-              
-              {/* 승인된 문서들 목록 */}
-              {(() => {
-                const acceptedProposals = meeting.proposals.filter(p => p.status === 'accepted');
-                
-                return acceptedProposals.length > 0 && (
-                  <div className="bg-green-50 rounded-lg p-4 border border-green-200">
-                    <h4 className="text-sm font-medium text-green-800 mb-3">승인된 기고서들</h4>
-                    <div className="space-y-3">
-                      {acceptedProposals.map(proposal => {
-                        const revisionCount = meeting.revisions[proposal.id]?.length || 0;
-                        const memo = meeting.memos?.[proposal.id] || '';
-                        
-                        return (
-                          <div key={proposal.id} className="bg-white rounded-md p-3 border border-green-100">
-                            <div className="flex items-center gap-2 mb-1">
-                              <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                              <span className="text-sm font-medium text-green-800 truncate">{proposal.name}</span>
-                            </div>
-                            {memo && (
-                              <div className="text-xs text-green-700 mb-1 italic">
-                                논의: {memo}
-                              </div>
-                            )}
-                            <div className="text-xs text-green-600">
-                              {revisionCount > 0 ? `${revisionCount}번의 수정을 거쳐 최종 반영` : '최초 제출본 반영'}
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                );
-              })()}
-            </div>
-
-            {meeting.resultDocument && userRole === 'chair' && (
-              <div className="mt-6">
-                <Button
-                  onClick={onComplete}
-                  className={cn(
-                    "w-full shadow-lg hover:shadow-xl transition-all duration-300",
-                    meeting.isCompleted 
-                      ? "bg-gradient-to-r from-gray-500 to-slate-500 hover:from-gray-600 hover:to-slate-600 text-white"
-                      : "bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600 text-white"
-                  )}
-                  size="lg"
-                >
-                  <CheckCircle className="h-5 w-5 mr-2" />
-                  {meeting.isCompleted ? "완료 취소" : "Finalize"}
-                </Button>
-              </div>
-            )}
-
-            {meeting.isCompleted && (
-              <div className="mt-6">
-                <div className="bg-gradient-to-r from-green-500 to-emerald-500 text-white rounded-lg p-4 text-center shadow-lg">
-                  <CheckCircle className="h-6 w-6 mx-auto mb-2" />
-                  <p className="font-semibold">회의 완료됨</p>
-                  <p className="text-sm text-green-100 mt-1">위 버튼으로 완료를 취소할 수 있습니다</p>
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-    </div>
-  )
-}
-
   // Main return for AcronymPage
   return (
-    <div className="flex flex-col lg:flex-row">
+    <div className="flex flex-col lg:flex-row bg-gray-950 min-h-screen">
       {/* 모바일 헤더 */}
-      <div className="lg:hidden bg-white border-b border-gray-200 p-4">
+      <div className="lg:hidden bg-gray-900 border-b border-gray-700 p-4">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
+            <h1 className="text-xl font-bold text-blue-400 font-mono">
               {standard.acronym}
             </h1>
-            <p className="text-gray-600 text-sm mt-1">{standard.title}</p>
+            <p className="text-gray-400 text-sm mt-1 font-mono">{standard.title}</p>
           </div>
           <div className="flex items-center gap-2">
-            <div className="text-xs text-gray-600">
-              <span className={`font-medium ${auth.role === 'chair' ? 'text-blue-600' : 'text-green-600'}`}>
-                {auth.role === 'chair' ? 'Chair' : 'Contributor'}
+            <div className="text-xs text-gray-400">
+              <span className={`font-medium font-mono ${auth.role === 'chair' ? 'text-blue-400' : 'text-green-400'}`}>
+                {auth.role === 'chair' ? '[CHAIR]' : '[CONTRIBUTOR]'}
               </span>
             </div>
             <Link href="/">
-              <Button variant="outline" size="sm" className="flex items-center gap-2">
+              <Button variant="outline" size="sm" className="bg-gray-800 border-gray-600 text-gray-300 hover:bg-gray-700">
                 <Home className="h-4 w-4" />
-                홈
               </Button>
             </Link>
             <Button
               variant="outline"
               size="sm"
               onClick={logout}
-              className="flex items-center gap-2"
+              className="bg-gray-800 border-gray-600 text-gray-300 hover:bg-gray-700"
             >
               <LogOut className="h-4 w-4" />
             </Button>
@@ -987,7 +657,7 @@ function MeetingTab({
       </div>
 
       {/* 사이드바 - 모바일에서는 상단 수평, 데스크톱에서는 좌측 세로 */}
-      <div className="bg-white border-b lg:border-r lg:border-b-0 border-gray-200 lg:w-64 lg:min-h-screen">
+      <div className="bg-gray-900 border-b lg:border-r lg:border-b-0 border-gray-700 lg:w-64 lg:min-h-screen">
         <div className="p-2 lg:p-4">
           {/* 홈으로 버튼 */}
           <div className="flex lg:flex-col gap-2 mb-2 lg:mb-4 overflow-x-auto lg:overflow-x-visible">
@@ -1025,21 +695,20 @@ function MeetingTab({
 
           {/* 데스크톱 헤더 */}
           <div className="hidden lg:block mb-6">
-            <h1 className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
+            <h1 className="text-2xl font-bold text-blue-400 font-mono">
               {standard.acronym}
             </h1>
-            <p className="text-gray-600 text-sm mt-1">{standard.title}</p>
-            <div className="text-xs text-gray-600 mt-2">
-              <span className={`font-medium ${auth.role === 'chair' ? 'text-blue-600' : 'text-green-600'}`}>
-                {auth.role === 'chair' ? 'Chair' : 'Contributor'}
+            <p className="text-gray-400 text-sm mt-1 font-mono">{standard.title}</p>
+            <div className="text-xs text-gray-400 mt-2">
+              <span className={`font-medium font-mono ${auth.role === 'chair' ? 'text-blue-400' : 'text-green-400'}`}>
+                 {auth.role === 'chair' ? 'CHAIR MODE' : 'CONTRIBUTOR MODE'}
               </span>
-              로 로그인됨
             </div>
           </div>
 
           {/* 회의 목록 */}
           <div className="flex lg:flex-col gap-2 overflow-x-auto lg:overflow-x-visible">
-            <h3 className="font-semibold text-gray-800 mb-2 hidden lg:block flex-shrink-0">회의 목록</h3>
+            <h3 className="font-semibold text-gray-300 mb-2 hidden lg:block flex-shrink-0 font-mono">MEETINGS</h3>
             {/* 회의 탭들 */}
             <div className="flex lg:flex-col gap-2 lg:space-y-2 lg:space-x-0 space-x-2 space-y-0 overflow-x-auto lg:overflow-x-visible lg:overflow-y-auto lg:max-h-screen">
               {standard.meetings.map((meeting) => (
@@ -1047,10 +716,10 @@ function MeetingTab({
                   <button
                     onClick={() => setActiveMeetingId(meeting.id)}
                     className={cn(
-                      "text-left p-3 rounded-lg transition-all duration-200 lg:w-full whitespace-nowrap lg:whitespace-normal",
+                      "text-left p-3 rounded border transition-all duration-200 lg:w-full whitespace-nowrap lg:whitespace-normal font-mono",
                       activeMeetingId === meeting.id
-                        ? "bg-gradient-to-r from-blue-500 to-indigo-500 text-white shadow-lg"
-                        : "hover:bg-gray-100"
+                        ? "bg-purple-600 text-white border-purple-500"
+                        : "bg-gray-800 text-gray-300 border-gray-600 hover:bg-gray-700"
                     )}
                   >
                     <div className="flex items-center gap-2">
@@ -1059,14 +728,14 @@ function MeetingTab({
                         <p className="font-medium text-sm truncate">{meeting.title}</p>
                         <p className={cn(
                           "text-xs truncate",
-                          activeMeetingId === meeting.id ? "text-blue-100" : "text-gray-500"
+                          activeMeetingId === meeting.id ? "text-purple-200" : "text-gray-500"
                         )}>
                           {meeting.startDate && meeting.endDate ? (
                             meeting.startDate === meeting.endDate ? 
                               new Date(meeting.startDate).toLocaleDateString("ko-KR") :
                               `${new Date(meeting.startDate).toLocaleDateString("ko-KR")} ~ ${new Date(meeting.endDate).toLocaleDateString("ko-KR")}`
                           ) : (
-                            meeting.date ? new Date(meeting.date).toLocaleDateString("ko-KR") : "날짜 없음"
+                            meeting.date ? new Date(meeting.date).toLocaleDateString("ko-KR") : "NO_DATE"
                           )}
                         </p>
                       </div>
@@ -1084,7 +753,7 @@ function MeetingTab({
                           e.stopPropagation();
                           handleEditMeeting(meeting, setEditingMeeting, setEditMeetingOpen);
                         }}
-                        className="bg-blue-500 hover:bg-blue-600 text-white rounded-full p-1 text-xs"
+                        className="bg-blue-500 hover:bg-blue-600 text-white rounded p-1 text-xs"
                         title="회의 수정"
                       >
                         <Edit className="h-3 w-3" />
@@ -1094,7 +763,7 @@ function MeetingTab({
                           e.stopPropagation();
                           handleDeleteMeeting(meeting.id);
                         }}
-                        className="bg-red-500 hover:bg-red-600 text-white rounded-full p-1 text-xs"
+                        className="bg-red-500 hover:bg-red-600 text-white rounded p-1 text-xs"
                         title="회의 삭제"
                       >
                         <Trash2 className="h-3 w-3" />
@@ -1115,19 +784,19 @@ function MeetingTab({
       </div>
 
       {/* 메인 콘텐츠 */}
-      <div className="flex-1 p-2 lg:p-6 overflow-x-auto lg:overflow-x-visible">
+      <div className="flex-1 p-2 lg:p-6 overflow-x-auto lg:overflow-x-visible bg-gray-950">
         {standard.meetings.length === 0 ? (
           <div className="flex items-center justify-center h-96">
             <div className="text-center">
-              <h2 className="text-xl font-semibold text-gray-600 mb-2">회의가 없습니다</h2>
-              <p className="text-gray-500">새 회의를 추가하여 시작하세요.</p>
+              <h2 className="text-xl font-semibold text-gray-400 mb-2 font-mono">// NO_MEETINGS_FOUND</h2>
+              <p className="text-gray-500 font-mono">새 회의를 추가하여 시작하세요.</p>
             </div>
           </div>
         ) : (
           standard.meetings
             .filter(meeting => meeting.id === activeMeetingId)
             .map((meeting) => (
-              <MeetingTab
+              <NewMeetingTab
                 key={meeting.id}
                 meeting={meeting}
                 acronym={standard.acronym}
@@ -1138,6 +807,7 @@ function MeetingTab({
                 onFileDelete={(documentId, type, proposalId, filePath) => handleFileDelete(documentId, meeting.id, type, proposalId, filePath)}
                 onMemoToggle={handleMemoToggle}
                 onMemoUpdate={(proposalId, memo) => handleMemoUpdate(meeting.id, proposalId, memo)}
+                onProposalReorder={(reorderedProposals) => handleProposalReorder(meeting.id, reorderedProposals)}
                 expandedMemos={expandedMemos}
               />
             ))

@@ -4,6 +4,11 @@ import path from 'path'
 
 const STANDARDS_FILE = path.join(process.cwd(), 'data', 'standards.json')
 
+// 파일 경로에서 안전하지 않은 문자들을 교체하는 함수
+function sanitizeForPath(str: string): string {
+  return str.replace(/[\/\\:*?"<>|]/g, '_')
+}
+
 // 회의 생성
 export async function POST(request: NextRequest) {
   try {
@@ -39,11 +44,16 @@ export async function POST(request: NextRequest) {
           standard.meetings = []
         }
         
+        // 날짜 기반 ID 생성 (YYMM-title 형식)
+        const startDateObj = new Date(startDate)
+        const yearMonth = startDateObj.getFullYear().toString().slice(2) + 
+                         (startDateObj.getMonth() + 1).toString().padStart(2, '0')
+        
         // 중복 ID 체크 및 유니크 ID 생성
-        let uniqueId = title
+        let uniqueId = `${yearMonth}-${title}`
         let counter = 1
         while (standard.meetings.some((m: any) => m.id === uniqueId)) {
-          uniqueId = `${title} (${counter})`
+          uniqueId = `${yearMonth}-${title} (${counter})`
           counter++
         }
         
@@ -63,8 +73,9 @@ export async function POST(request: NextRequest) {
         standards.standards[standardIndex] = standard
         createdCount++
         
-        // 회의 폴더 생성
-        const meetingDir = path.join(process.cwd(), 'data', acronym, title)
+        // 회의 폴더 생성 (meetingId 기반)
+        const safeMeetingId = sanitizeForPath(uniqueId)
+        const meetingDir = path.join(process.cwd(), 'data', acronym, safeMeetingId)
         if (!fs.existsSync(meetingDir)) {
           fs.mkdirSync(meetingDir, { recursive: true })
         }
