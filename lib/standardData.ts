@@ -2,21 +2,21 @@ import { Standard } from "@/types/standard"
 
 export const getStandardData = async (acronym: string): Promise<Standard | null> => {
   try {
-    const response = await fetch('/api/standards')
+    console.log(`API 호출: GET /api/standards/${acronym}`)
+    const response = await fetch(`/api/standards/${acronym}`)
     if (!response.ok) {
       return null
     }
     
-    const data = await response.json()
-    const foundStandard = data.standards.find((s: any) => s.acronym === acronym)
+    const standardData = await response.json()
     
-    if (foundStandard) {
+    if (standardData) {
       // meetings가 배열이 아닌 경우 (숫자인 경우) 빈 배열로 초기화
-      const meetings = Array.isArray(foundStandard.meetings) ? foundStandard.meetings : []
+      const meetings = Array.isArray(standardData.meetings) ? standardData.meetings : []
       
       // 회의 데이터가 없으면 빈 배열로 초기화, memos 필드도 확인
       return {
-        ...foundStandard,
+        ...standardData,
         meetings: meetings.map((meeting: any) => ({
           ...meeting,
           memos: meeting.memos || {}
@@ -32,7 +32,6 @@ export const getStandardData = async (acronym: string): Promise<Standard | null>
 }
 
 export const saveStandardData = async (standard: Standard) => {
-  // 서버 API로 저장하는 로직은 별도 API 엔드포인트가 필요함
-  // 현재는 각 기능별 API를 사용 (회의 생성, 메모 저장 등)
-  console.log('saveStandardData는 더 이상 사용되지 않습니다. 개별 API를 사용하세요.')
+  // 이 함수는 더 이상 사용되지 않음 - 개별 API 엔드포인트 사용
+  // 레거시 코드 호환성을 위해 빈 함수로 유지
 }

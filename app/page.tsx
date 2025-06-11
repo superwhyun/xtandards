@@ -16,6 +16,7 @@ import SettingsDialog from "@/components/auth/SettingsDialog"
 import AgendaSelectDialog from "@/components/AgendaSelectDialog"
 import MinutesSelectDialog from "@/components/MinutesSelectDialog"
 import DocumentGenerator from "@/components/DocumentGenerator"
+import { useAuth } from "@/hooks/useAuth"
 
 interface Standard {
   acronym: string
@@ -31,6 +32,7 @@ interface UploadedProposal {
 
 const getStoredStandards = async (): Promise<Standard[]> => {
   try {
+    console.log('API 호출: GET /api/standards')
     const response = await fetch('/api/standards')
     if (!response.ok) {
       console.error('표준문서 조회 실패:', response.status, response.statusText)
@@ -266,12 +268,8 @@ function NewStandardDialog({
 }
 
 export default function Page() {
+  const { auth, loading, login, logout } = useAuth()
   const [standards, setStandards] = useState<Standard[]>([])
-  const [auth, setAuth] = useState<AuthState>({
-    isAuthenticated: false,
-    role: null,
-    user: null
-  })
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [uploadedProposals, setUploadedProposals] = useState<UploadedProposal[]>([])
   const [showMeetingCreateDialog, setShowMeetingCreateDialog] = useState(false)
@@ -289,33 +287,12 @@ export default function Page() {
     title: ''
   })
 
-  const getAllMeetingTitles = (): string[] => {
-    const existingStandardData = localStorage.getItem('standards')
-    if (!existingStandardData) return []
-    
-    try {
-      const allStandards = JSON.parse(existingStandardData)
-      const allTitles = new Set<string>()
-      
-      allStandards.forEach((standard: any) => {
-        if (Array.isArray(standard.meetings)) {
-          standard.meetings.forEach((meeting: any) => {
-            if (meeting.title && meeting.title.trim()) {
-              allTitles.add(meeting.title.trim())
-            }
-          })
-        }
-      })
-      
-      return Array.from(allTitles).sort()
-    } catch (error) {
-      console.error('회의 제목 수집 오류:', error)
-      return []
-    }
-  }
+  // localStorage 대신 서버에서 회의 제목들을 가져오는 함수는 제거
+  // AgendaSelectDialog와 MinutesSelectDialog에서 직접 API 호출
 
   const handleGenerateAgenda = async (meetingTitle: string) => {
     try {
+      console.log('API 호출: GET /api/standards')
       const response = await fetch('/api/standards')
       if (!response.ok) {
         alert('표준문서 데이터를 조회할 수 없습니다.')
@@ -388,6 +365,7 @@ export default function Page() {
 
   const handleGenerateMinutes = async (meetingTitle: string) => {
     try {
+      console.log('API 호출: GET /api/standards')
       const response = await fetch('/api/standards')
       if (!response.ok) {
         alert('표준문서 데이터를 조회할 수 없습니다.')
@@ -481,37 +459,7 @@ export default function Page() {
       alert('회의록 생성 중 오류가 발생했습니다.')
     }
   }
-  const handleLogin = (role: UserRole, password: string, username?: string) => {
-    const chairPassword = localStorage.getItem('chairPassword') || 'chair'
-    const contributorPassword = localStorage.getItem('contributorPassword') || 'cont'
-    
-    const isValid = (role === 'chair' && password === chairPassword) ||
-                   (role === 'contributor' && password === contributorPassword)
-    
-    if (isValid) {
-      const authState = {
-        isAuthenticated: true,
-        role: role as UserRole,
-        user: username || role
-      }
-      setAuth(authState)
-      // 인증 정보를 localStorage에 저장
-      localStorage.setItem('authState', JSON.stringify(authState))
-      return true
-    }
-    return false
-  }
-
-  const handleLogout = () => {
-    const authState = {
-      isAuthenticated: false,
-      role: null,
-      user: null
-    }
-    setAuth(authState)
-    // localStorage에서 인증 정보 삭제
-    localStorage.removeItem('authState')
-  }
+  // handleLogin과 handleLogout은 useAuth 훅에서 제공되므로 제거
 
   useEffect(() => {
     const loadStandards = async () => {
@@ -519,18 +467,7 @@ export default function Page() {
       setStandards(standardsData)
     }
     loadStandards()
-    
-    // 저장된 인증 정보 복원
-    const savedAuth = localStorage.getItem('authState')
-    if (savedAuth) {
-      try {
-        const parsedAuth = JSON.parse(savedAuth)
-        setAuth(parsedAuth)
-      } catch (error) {
-        console.error('인증 정보 복원 실패:', error)
-      }
-    }
-  }, [])
+  }, [])  // 인증 관련 코드 제거
 
   const handleProposalUpload = async (files: FileList) => {
     const newProposals = Array.from(files).map(file => ({
@@ -546,6 +483,7 @@ export default function Page() {
       if (!proposal) return
 
       // 서버에서 표준문서 데이터 가져오기
+      console.log('API 호출: GET /api/standards')
       const response = await fetch('/api/standards')
       if (!response.ok) {
         alert('표준문서 정보를 가져올 수 없습니다.')
@@ -576,6 +514,7 @@ export default function Page() {
       formData.append('meetingId', targetMeeting.id)
       formData.append('type', 'proposal')
 
+      console.log('API 호출: POST /api/proposal')
       const uploadResponse = await fetch('/api/proposal', {
         method: 'POST',
         body: formData
@@ -612,6 +551,7 @@ export default function Page() {
 
   const handleCreateStandard = async (standardData: { acronym: string; title: string }) => {
     try {
+      console.log('API 호출: POST /api/standards')
       const response = await fetch('/api/standards', {
         method: 'POST',
         headers: {
@@ -636,9 +576,20 @@ export default function Page() {
     }
   }
 
-  // 로그인하지 않은 경우 로그인 화면 표시
+  // 로딩 중이거나 로그인하지 않은 경우 로그인 화면 표시
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-gray-100 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">로딩 중...</p>
+        </div>
+      </div>
+    )
+  }
+
   if (!auth.isAuthenticated) {
-    return <LoginScreen onLogin={handleLogin} />
+    return <LoginScreen onLogin={login} />
   }
 
   const handleDeleteStandard = async (acronym: string) => {
@@ -647,6 +598,7 @@ export default function Page() {
     }
 
     try {
+      console.log(`API 호출: DELETE /api/standards/delete?acronym=${acronym}`)
       const response = await fetch(`/api/standards/delete?acronym=${encodeURIComponent(acronym)}`, {
         method: 'DELETE'
       })
@@ -669,6 +621,7 @@ export default function Page() {
 
   const handleCreateMeetings = async (meetingData: { startDate: string; endDate: string; title: string; description?: string }, selectedStandardsList: string[]) => {
     try {
+      console.log('API 호출: POST /api/meetings')
       const response = await fetch('/api/meetings', {
         method: 'POST',
         headers: {
@@ -773,7 +726,7 @@ export default function Page() {
               <Button
                 variant="outline"
                 size="sm"
-                onClick={handleLogout}
+                onClick={logout}
                 className="gap-2"
               >
                 <LogOut className="h-4 w-4" />

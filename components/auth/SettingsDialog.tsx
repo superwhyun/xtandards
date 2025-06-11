@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -19,33 +19,69 @@ export default function SettingsDialog({ isOpen, onOpenChange }: SettingsDialogP
   const [showChairPassword, setShowChairPassword] = useState(false)
   const [showContributorPassword, setShowContributorPassword] = useState(false)
   const [success, setSuccess] = useState("")
+  const [loading, setLoading] = useState(false)
 
-  const loadPasswords = () => {
-    if (typeof window !== 'undefined') {
-      const chairPw = localStorage.getItem('chairPassword') || 'chair'
-      const contPw = localStorage.getItem('contributorPassword') || 'cont'
-      setChairPassword(chairPw)
-      setContributorPassword(contPw)
+  const loadPasswords = async () => {
+    if (!isOpen) return
+    
+    try {
+      setLoading(true)
+      console.log('API 호출: GET /api/auth/settings')
+      const response = await fetch('/api/auth/settings')
+      if (response.ok) {
+        const data = await response.json()
+        setChairPassword(data.chairPassword || 'chair')
+        setContributorPassword(data.contributorPassword || 'cont')
+      }
+    } catch (error) {
+      console.error('비밀번호 로드 오류:', error)
+    } finally {
+      setLoading(false)
     }
   }
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!chairPassword || !contributorPassword) {
       return
     }
 
-    localStorage.setItem('chairPassword', chairPassword)
-    localStorage.setItem('contributorPassword', contributorPassword)
-    setSuccess("비밀번호가 성공적으로 변경되었습니다")
-    
-    setTimeout(() => {
-      setSuccess("")
-      onOpenChange(false)
-    }, 1500)
+    try {
+      setLoading(true)
+      console.log('API 호출: PUT /api/auth/settings')
+      const response = await fetch('/api/auth/settings', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ chairPassword, contributorPassword })
+      })
+
+      if (response.ok) {
+        setSuccess("비밀번호가 성공적으로 변경되었습니다")
+        setTimeout(() => {
+          setSuccess("")
+          onOpenChange(false)
+        }, 1500)
+      } else {
+        setSuccess("비밀번호 변경에 실패했습니다")
+      }
+    } catch (error) {
+      console.error('비밀번호 변경 오류:', error)
+      setSuccess("비밀번호 변경 중 오류가 발생했습니다")
+    } finally {
+      setLoading(false)
+    }
   }
 
+  // 다이얼로그가 열릴 때 비밀번호 로드
+  useEffect(() => {
+    if (isOpen) {
+      loadPasswords()
+    }
+  }, [isOpen])
+
   return (
-    <Dialog open={isOpen} onOpenChange={onOpenChange} onOpenChangeCapture={loadPasswords}>
+    <Dialog open={isOpen} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
@@ -123,9 +159,9 @@ export default function SettingsDialog({ isOpen, onOpenChange }: SettingsDialogP
             <Button variant="outline" onClick={() => onOpenChange(false)} className="flex-1">
               취소
             </Button>
-            <Button onClick={handleSave} className="flex-1 gap-2" disabled={!chairPassword || !contributorPassword}>
+            <Button onClick={handleSave} className="flex-1 gap-2" disabled={!chairPassword || !contributorPassword || loading}>
               <Save className="h-4 w-4" />
-              저장
+              {loading ? '저장 중...' : '저장'}
             </Button>
           </div>
         </div>

@@ -25,6 +25,7 @@ import LoginScreen, { UserRole, AuthState } from "@/components/auth/LoginScreen"
 import SettingsDialog from "@/components/auth/SettingsDialog"
 import { useMeetingHandlers } from "@/hooks/useMeetingHandlers"
 import { saveStandardData } from "@/lib/standardData"
+import { useAuth } from "@/hooks/useAuth"
 import MemoSection from "@/components/MemoSection"
 
 import { Document, Meeting } from "@/types/standard"
@@ -38,6 +39,7 @@ interface Standard {
 // 서버에서 메모 로드 함수
 const loadMemosFromServer = async (acronym: string, meetingId: string): Promise<{ [key: string]: string }> => {
   try {
+    console.log(`API 호출: GET /api/memo?acronym=${acronym}&meetingId=${meetingId}`)
     const response = await fetch(`/api/memo?acronym=${acronym}&meetingId=${meetingId}`)
     if (response.ok) {
       const result = await response.json()
@@ -55,69 +57,26 @@ const loadMemosFromServer = async (acronym: string, meetingId: string): Promise<
 function AcronymPage() {
   const params = useParams()
   const acronym = params.acronym as string
+  const { auth, loading, login, logout } = useAuth()
   
-  // 인증 상태 관리
-  const [auth, setAuth] = useState<AuthState>({
-    isAuthenticated: false,
-    role: null,
-    user: null
-  })
+  // 다이얼로그 상태 관리
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [editMeetingOpen, setEditMeetingOpen] = useState(false)
   const [editingMeeting, setEditingMeeting] = useState<Meeting | null>(null)
   
-  // 상태 및 핸들러 함수 복구
+  // 표준문서 및 회의 상태
   const [standard, setStandard] = useState<Standard | null>(null)
   const [activeMeetingId, setActiveMeetingId] = useState<string>("")
   const [expandedMemos, setExpandedMemos] = useState<{ [key: string]: boolean }>({}) // 메모 확장 상태
 
-  const handleLogin = (role: UserRole, password: string, username?: string): boolean => {
-    const chairPassword = localStorage.getItem('chairPassword') || 'chair'
-    const contributorPassword = localStorage.getItem('contributorPassword') || 'cont'
-    
-    const isValid = (role === 'chair' && password === chairPassword) || 
-                   (role === 'contributor' && password === contributorPassword)
-    
-    if (isValid) {
-      const authState = {
-        isAuthenticated: true,
-        role,
-        user: username || role
-      }
-      setAuth(authState)
-      // 인증 정보를 localStorage에 저장
-      localStorage.setItem('authState', JSON.stringify(authState))
-      return true
-    }
-    return false
-  }
-
-  const handleLogout = () => {
-    const authState = {
-      isAuthenticated: false,
-      role: null,
-      user: null
-    }
-    setAuth(authState)
-    // localStorage에서 인증 정보 삭제
-    localStorage.removeItem('authState')
-  }
+  // 인증 관련 함수들은 useAuth 훅에서 제공하므로 제거
 
   useEffect(() => {
-    // 저장된 인증 정보 복원
-    const savedAuth = localStorage.getItem('authState')
-    if (savedAuth) {
-      try {
-        const parsedAuth = JSON.parse(savedAuth)
-        setAuth(parsedAuth)
-      } catch (error) {
-        console.error('인증 정보 복원 실패:', error)
-      }
-    }
-
+    // 표준문서 데이터 로드
     if (acronym) {
       const loadStandardData = async () => {
         try {
+          console.log(`API 호출: GET /api/${acronym}/meetings`)
           const response = await fetch(`/api/${acronym}/meetings`)
           if (response.ok) {
             const standardData = await response.json()
@@ -203,6 +162,7 @@ function AcronymPage() {
     
     try {
       // 서버에 업데이트된 표준문서 데이터 저장
+      console.log(`API 호출: PUT /api/${acronym}`)
       await fetch(`/api/${acronym}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
@@ -240,6 +200,7 @@ const { handleEditMeeting, handleSaveMeeting, handleFileUpload } = useMeetingHan
 
     try {
       // 서버에 메모 저장
+      console.log('API 호출: POST /api/memo')
       const response = await fetch('/api/memo', {
         method: 'POST',
         headers: {
@@ -301,6 +262,7 @@ const { handleEditMeeting, handleSaveMeeting, handleFileUpload } = useMeetingHan
       if (proposalId) params.append('proposalId', proposalId)
       if (filePath) params.append('filePath', filePath)
       
+      console.log(`API 호출: DELETE /api/file-delete?${params}`)
       const response = await fetch(`/api/file-delete?${params}`, {
         method: 'DELETE'
       })
@@ -401,6 +363,7 @@ const { handleEditMeeting, handleSaveMeeting, handleFileUpload } = useMeetingHan
       
       // 서버에 회의 상태 업데이트
       try {
+        console.log('API 호출: POST /api/meetings/update')
         const response = await fetch('/api/meetings/update', {
           method: 'POST',
           headers: {
@@ -446,6 +409,7 @@ const { handleEditMeeting, handleSaveMeeting, handleFileUpload } = useMeetingHan
 
     try {
       // 서버에 회의 삭제 요청
+      console.log(`API 호출: DELETE /api/meetings/delete?acronym=${standard.acronym}&meetingId=${meetingId}`)
       const response = await fetch(`/api/meetings/delete?acronym=${encodeURIComponent(standard.acronym)}&meetingId=${encodeURIComponent(meetingId)}`, {
         method: 'DELETE'
       })
@@ -487,6 +451,7 @@ const { handleEditMeeting, handleSaveMeeting, handleFileUpload } = useMeetingHan
     
     try {
       // 서버에 회의 생성 요청
+      console.log('API 호출: POST /api/meetings')
       const response = await fetch('/api/meetings', {
         method: 'POST',
         headers: {
@@ -559,9 +524,20 @@ const { handleEditMeeting, handleSaveMeeting, handleFileUpload } = useMeetingHan
     }
   }, [standard])
 
-  // 로그인하지 않은 경우 로그인 화면 표시
+  // 로딩 중이거나 로그인하지 않은 경우 로그인 화면 표시
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-gray-100 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">로딩 중...</p>
+        </div>
+      </div>
+    )
+  }
+
   if (!auth.isAuthenticated) {
-    return <LoginScreen onLogin={handleLogin} />
+    return <LoginScreen onLogin={login} />
   }
 
   if (!standard) {
@@ -1001,7 +977,7 @@ function MeetingTab({
             <Button
               variant="outline"
               size="sm"
-              onClick={handleLogout}
+              onClick={logout}
               className="flex items-center gap-2"
             >
               <LogOut className="h-4 w-4" />
@@ -1037,7 +1013,7 @@ function MeetingTab({
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={handleLogout}
+                  onClick={logout}
                   className="lg:flex-1 flex items-center gap-2"
                 >
                   <LogOut className="h-4 w-4" />

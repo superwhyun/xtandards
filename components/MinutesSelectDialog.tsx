@@ -21,21 +21,9 @@ interface MinutesSelectDialogProps {
   onGenerateMinutes: (meetingTitle: string) => void
 }
 
-const getStoredStandards = () => {
-  if (typeof window === 'undefined') return []
-  const stored = localStorage.getItem('standards')
-  if (!stored) return []
-  
-  try {
-    return JSON.parse(stored)
-  } catch (error) {
-    console.error('표준문서 데이터 파싱 오류:', error)
-    return []
-  }
-}
-
 const getAllMeetingTitles = async (): Promise<string[]> => {
   try {
+    console.log('API 호출: GET /api/meetings')
     const response = await fetch('/api/meetings')
     if (!response.ok) {
       throw new Error('회의명 조회 실패')

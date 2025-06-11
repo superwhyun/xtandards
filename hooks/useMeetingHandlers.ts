@@ -40,6 +40,7 @@ export function useMeetingHandlers(standard: Standard | null, setStandard: (s: S
     }
 
     try {
+      console.log('API 호출: POST /api/upload')
       const response = await fetch('/api/upload', {
         method: 'POST',
         body: formData

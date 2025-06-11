@@ -1,42 +1,18 @@
 import { useState, useEffect, useCallback } from "react"
 import { getStandardData, saveStandardData } from "@/lib/standardData"
 import { Standard, Meeting } from "@/types/standard"
-import { AuthState } from "@/components/auth/LoginScreen"
+import { useAuth } from "./useAuth"
 
 export function useAcronymPage(acronym: string) {
-  const [auth, setAuth] = useState<AuthState>({
-    isAuthenticated: false,
-    role: null,
-    user: null
-  })
+  const { auth, logout } = useAuth()
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [editMeetingOpen, setEditMeetingOpen] = useState(false)
   const [standard, setStandard] = useState<Standard | null>(null)
   const [activeMeetingId, setActiveMeetingId] = useState<string>("")
   const [editingMeeting, setEditingMeeting] = useState<Meeting | null>(null)
 
-  const handleLogout = () => {
-    const authState = {
-      isAuthenticated: false,
-      role: null,
-      user: null
-    }
-    setAuth(authState)
-    localStorage.removeItem('authState')
-  }
-
   useEffect(() => {
-    // 저장된 인증 정보 복원
-    const savedAuth = localStorage.getItem('authState')
-    if (savedAuth) {
-      try {
-        const parsedAuth = JSON.parse(savedAuth)
-        setAuth(parsedAuth)
-      } catch (error) {
-        console.error('인증 정보 복원 실패:', error)
-      }
-    }
-
+    // 표준문서 데이터 로드
     if (acronym) {
       const standardData = getStandardData(acronym)
       if (standardData) {
@@ -97,6 +73,7 @@ export function useAcronymPage(acronym: string) {
     
     // 서버에도 전체 표준문서 데이터 저장
     try {
+      console.log(`API 호출: PUT /api/standards/${updatedStandard.acronym}`)
       const response = await fetch(`/api/standards/${updatedStandard.acronym}`, {
         method: 'PUT',
         headers: {
@@ -119,13 +96,13 @@ export function useAcronymPage(acronym: string) {
   }
 
   return {
-    auth, setAuth,
+    auth,
     settingsOpen, setSettingsOpen,
     editMeetingOpen, setEditMeetingOpen,
     standard, setStandard,
     activeMeetingId, setActiveMeetingId,
     editingMeeting, setEditingMeeting,
-    handleLogout,
+    handleLogout: logout,
     updateStandard,
     handleEditMeeting
   }

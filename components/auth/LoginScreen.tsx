@@ -16,7 +16,7 @@ export interface AuthState {
 }
 
 interface LoginScreenProps {
-  onLogin: (role: UserRole, password: string, username?: string) => boolean
+  onLogin: (role: UserRole, password: string, username?: string) => Promise<boolean>
 }
 
 export default function LoginScreen({ onLogin }: LoginScreenProps) {
@@ -31,14 +31,13 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
     // 기본 비밀번호 설정 (편의를 위해)
     setPassword(role === "chair" ? "chair" : "cont")
     
-    // Contributor인 경우 저장된 사용자명 로드
+    // Contributor인 경우 저장된 사용자명은 서버에서 관리하므로 빈 값으로 시작
     if (role === "contributor") {
-      const savedUsername = localStorage.getItem('contributorUsername') || ''
-      setUsername(savedUsername)
+      setUsername("")
     }
   }
 
-  const handleLogin = () => {
+  const handleLogin = async () => {
     if (!selectedRole || !password) {
       setError("역할과 비밀번호를 모두 입력해주세요")
       return
@@ -49,13 +48,10 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
       return
     }
 
-    const success = onLogin(selectedRole, password, username)
+    const success = await onLogin(selectedRole, password, username)
     if (!success) {
       setError("비밀번호가 올바르지 않습니다")
       setPassword("")
-    } else if (selectedRole === "contributor" && username) {
-      // Contributor 사용자명 저장
-      localStorage.setItem('contributorUsername', username)
     }
   }
 

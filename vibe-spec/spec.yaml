@@ -10,13 +10,16 @@ standard_document_management:
   current_implementation_status:
     completed_features:
       authentication_and_authorization:
+        - 서버 기반 인증 시스템 (쿠키 세션)
         - Chair/Contributor 역할 선택 로그인 시스템
         - 기본 비밀번호 자동 입력 (Chair: 'chair', Contributor: 'cont')
         - Chair 전용 설정 메뉴에서 비밀번호 변경 기능
-        - localStorage 기반 비밀번호 저장
+        - 서버 파일 기반 비밀번호 저장 (/data/auth-config.json)
         - 권한별 UI 요소 표시/숨김 처리
         - 로그아웃 기능 및 세션 상태 관리
-        - Contributor 로그인 시 사용자명 입력 및 localStorage 저장 기능
+        - Contributor 로그인 시 사용자명 입력 및 서버 저장 기능
+        - JWT 대신 간단한 base64 세션 토큰 사용
+        - 7일 자동 만료 쿠키 기반 세션 관리
 
       role_based_access_control:
         chair_permissions:
@@ -87,16 +90,17 @@ standard_document_management:
         - 승인된 문서 요약 표시 (기고서명, 메모, 수정횟수 포함)
 
       data_persistence:
-        - localStorage 기반 데이터 영속성
-        - 사용자 인증 정보 저장 (역할별 비밀번호)
-        - Contributor 사용자명 localStorage 저장
-        - 표준문서별 메타데이터 저장
-        - 회의 정보 저장 (제목, 날짜, 설명, 완료 상태)
-        - 파일 정보 및 경로 저장
-        - 문서 상태 추적 (Accept/Withdraw/Reject)
-        - 문서간 연결 관계 저장
-        - 기고서별 메모 저장 및 관리
-        - 업로더 정보 저장 및 관리
+        - 완전한 서버 기반 데이터 영속성
+        - 파일 시스템 기반 데이터 저장 (/data 폴더)
+        - 서버 기반 사용자 인증 정보 저장 (쿠키 세션)
+        - 표준문서별 메타데이터 API 저장
+        - 회의 정보 API 저장 (제목, 날짜, 설명, 완료 상태)
+        - 파일 정보 및 경로 서버 저장
+        - 문서 상태 추적 API (Accept/Withdraw/Reject)
+        - 문서간 연결 관계 서버 저장
+        - 기고서별 메모 API 저장 및 관리
+        - 업로더 정보 서버 저장 및 관리
+        - localStorage 의존성 완전 제거
 
       user_experience:
         - 역할별 개인화된 인터페이스
@@ -110,16 +114,18 @@ standard_document_management:
         - Chair용 표준문서 삭제 기능 (확인 다이얼로그 포함)
 
   recent_updates:
-    - Chair 로그인 시 메인 페이지 표준문서 카드에 삭제 버튼 추가
-    - Contributor 로그인 시 사용자명 입력 필드 추가 및 localStorage 저장
-    - 업로드된 문서에 업로더 이름 표시 기능 추가
-    - Contributor 파일 업로드 후 첫 번째 미팅으로 이동하는 버그 수정
-    - Document 타입에 uploader 필드 추가
-    - DocumentCard 컴포넌트에 업로더 정보 표시 추가
+    - localStorage 기반 인증 시스템을 서버 기반으로 완전 전환
+    - 쿠키 기반 세션 관리로 변경 (7일 자동 만료)
+    - 서버 파일 기반 비밀번호 저장 시스템 구현
+    - 인증 관련 API 엔드포인트 추가 (/api/auth/*)
+    - useAuth 훅 생성으로 인증 로직 중앙화
+    - localStorage 의존성 완전 제거 및 좀비 코드 정리
+    - Dialog 컴포넌트들의 localStorage fallback 코드 제거
+    - 표준문서 데이터 조회 API 개선 (개별 표준문서 조회)
 
   TODO:
     - 표준문서 삭제 시 서버의 data 폴더도 함께 삭제하는 API 구현
-    - 파일 업로드 시 업로더 정보가 정상적으로 저장되는지 테스트
-    - Contributor 사용자명이 올바르게 표시되는지 확인
-    - 삭제 기능의 안전성 검증 (실수 삭제 방지)
+    - 서버 기반 인증 시스템의 보안성 테스트
+    - 세션 만료 시 자동 로그아웃 처리 확인
+    - 다중 사용자 동시 접속 시 데이터 충돌 방지 검증
 # %%%%%LAST%%%%%
