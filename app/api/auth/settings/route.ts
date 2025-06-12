@@ -43,7 +43,7 @@ function saveAuthConfig(config: AuthConfig) {
 // 비밀번호 조회
 export async function GET(request: NextRequest) {
   try {
-    const cookieStore = cookies()
+    const cookieStore = await cookies()
     const token = cookieStore.get('auth-token')?.value
 
     if (!token) {
@@ -70,7 +70,7 @@ export async function GET(request: NextRequest) {
 // 비밀번호 변경
 export async function PUT(request: NextRequest) {
   try {
-    const cookieStore = cookies()
+    const cookieStore = await cookies()
     const token = cookieStore.get('auth-token')?.value
 
     if (!token) {

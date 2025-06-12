@@ -87,6 +87,11 @@ function MeetingCreateDialog({
         setLoading(true)
         const standardsData = await getStoredStandards()
         setStandards(standardsData)
+        
+        // 모든 표준문서를 기본으로 선택
+        const allAcronyms = new Set(standardsData.map(s => s.acronym))
+        setSelectedStandards(allAcronyms)
+        
         setLoading(false)
       }
       loadStandards()
@@ -530,7 +535,7 @@ export default function Page() {
       console.log('API 호출: GET /api/standards')
       const response = await fetch('/api/standards')
       if (!response.ok) {
-        alert('표준문서 정보를 가져올 수 없습니다.')
+        console.error('표준문서 정보를 가져올 수 없습니다.')
         return
       }
       
@@ -538,37 +543,51 @@ export default function Page() {
       const standard = data.standards.find((s: any) => s.acronym === standardAcronym)
       
       if (!standard) {
-        alert('표준문서를 찾을 수 없습니다.')
+        console.error('표준문서를 찾을 수 없습니다.')
         return
       }
 
       if (!Array.isArray(standard.meetings) || standard.meetings.length === 0) {
-        alert('해당 표준문서에 회의가 없습니다. 먼저 회의를 생성해주세요.')
+        console.error('해당 표준문서에 회의가 없습니다. 먼저 회의를 생성해주세요.')
         return
       }
 
       // 현재 활성 회의 찾기 (메인 페이지에서는 마지막 회의를 기본으로 사용)
-      const targetMeeting = standard.meetings[standard.meetings.length - 1]
-      console.log('업로드 대상 회의:', targetMeeting) // 디버깅용
+      const targetMeetingId = standard.meetings[standard.meetings.length - 1]
+      console.log('업로드 대상 회의 ID:', targetMeetingId)
+      
+      if (!targetMeetingId) {
+        console.error('회의 ID가 없습니다.')
+        return
+      }
       
       // 파일 업로드 API 호출
       const formData = new FormData()
       formData.append('file', proposal.file)
       formData.append('acronym', standardAcronym)
-      formData.append('meetingId', targetMeeting.id)
+      formData.append('meetingId', targetMeetingId)
       formData.append('type', 'proposal')
       formData.append('extractedTitle', proposal.extractedTitle || '')
       formData.append('extractedAbstract', proposal.extractedAbstract || '')
 
-      console.log('API 호출: POST /api/proposal')
-      const uploadResponse = await fetch('/api/proposal', {
+      console.log('업로드 요청 파라미터:', {
+        file: proposal.file.name,
+        acronym: standardAcronym,
+        meetingId: targetMeetingId,
+        type: 'proposal',
+        extractedTitle: proposal.extractedTitle || '',
+        extractedAbstract: proposal.extractedAbstract || ''
+      })
+
+      console.log('API 호출: POST /api/upload')
+      const uploadResponse = await fetch('/api/upload', {
         method: 'POST',
         body: formData
       })
 
       if (!uploadResponse.ok) {
         const result = await uploadResponse.json()
-        alert(`업로드 실패: ${result.error}`)
+        console.error('업로드 실패:', result.error)
         return
       }
 
@@ -577,15 +596,10 @@ export default function Page() {
       // 업로드 성공시 업로드된 기고서 목록에서 제거
       setUploadedProposals(prev => prev.filter((_, index) => index !== proposalIndex))
       
-      // 표준문서 목록도 즉시 새로고침해서 UI에 반영
-      const updatedStandards = await getStoredStandards()
-      setStandards(updatedStandards)
-      
-      alert('기고서가 업로드되었습니다.')
+      // 표준문서 목록 새로고침 제거 (성능 개선 및 UI 깜빡임 방지)
 
     } catch (error) {
       console.error('기고서 추가 오류:', error)
-      alert('기고서 추가 중 오류가 발생했습니다.')
     }
   }
 
@@ -850,43 +864,9 @@ export default function Page() {
         <div className="mt-8 bg-white rounded-2xl p-6 shadow-lg border border-gray-200">
           <h2 className="text-xl font-bold text-gray-800 mb-4">기고서 업로드</h2>
           
-          {/* 업로드 드롭존 */}
-          <div className="mb-6">
-            <div 
-              className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center hover:border-blue-400 hover:bg-blue-50 transition-colors"
-              onDrop={(e) => {
-                e.preventDefault()
-                const files = e.dataTransfer.files
-                if (files.length > 0) {
-                  handleProposalUpload(files)
-                }
-              }}
-              onDragOver={(e) => {
-                e.preventDefault()
-              }}
-              onClick={() => {
-                const input = document.createElement('input')
-                input.type = 'file'
-                input.multiple = true
-                input.accept = '.pdf,.doc,.docx,.txt'
-                input.onchange = (e) => {
-                  const files = (e.target as HTMLInputElement).files
-                  if (files) {
-                    handleProposalUpload(files)
-                  }
-                }
-                input.click()
-              }}
-            >
-              <UploadIcon className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-              <p className="text-lg font-medium text-gray-700">기고서 파일을 드래그하거나 클릭하여 업로드</p>
-              <p className="text-sm text-gray-500 mt-2">PDF, DOC, DOCX, TXT 파일을 지원합니다</p>
-            </div>
-          </div>
-
           {/* 업로드된 기고서 목록 */}
           {uploadedProposals.length > 0 && (
-            <div>
+            <div className="mb-6">
               <h3 className="text-lg font-semibold text-gray-700 mb-3">업로드된 기고서</h3>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {uploadedProposals.map((proposal, index) => (
@@ -932,6 +912,41 @@ export default function Page() {
               </p>
             </div>
           )}
+          
+          {/* 업로드 드롭존 */}
+          <div>
+            <div 
+              className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center hover:border-blue-400 hover:bg-blue-50 transition-colors"
+              onDrop={(e) => {
+                e.preventDefault()
+                const files = e.dataTransfer.files
+                if (files.length > 0) {
+                  handleProposalUpload(files)
+                }
+              }}
+              onDragOver={(e) => {
+                e.preventDefault()
+              }}
+              onClick={() => {
+                const input = document.createElement('input')
+                input.type = 'file'
+                input.multiple = true
+                input.accept = '.pdf,.doc,.docx,.txt'
+                input.onchange = (e) => {
+                  const files = (e.target as HTMLInputElement).files
+                  if (files) {
+                    handleProposalUpload(files)
+                  }
+                }
+                input.click()
+              }}
+            >
+              <UploadIcon className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+              <p className="text-lg font-medium text-gray-700">기고서 파일을 드래그하거나 클릭하여 업로드</p>
+              <p className="text-sm text-gray-500 mt-2">PDF, DOC, DOCX, TXT 파일을 지원합니다</p>
+            </div>
+          </div>
+
         </div>
       </div>
 

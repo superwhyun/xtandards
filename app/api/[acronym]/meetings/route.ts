@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import fs from 'fs'
 import path from 'path'
+import { MeetingDb } from '@/lib/database/operations'
 
 // 파일 경로에서 안전하지 않은 문자들을 교체하는 함수
 function sanitizeForPath(str: string): string {
@@ -28,12 +29,32 @@ export async function GET(
       .map(dirent => dirent.name)
     
     for (const meetingId of meetingDirs) {
-      const meetingJsonPath = path.join(standardDir, meetingId, 'meeting.json')
-      if (fs.existsSync(meetingJsonPath)) {
+      const meetingDbPath = path.join(standardDir, meetingId, 'meeting.db')
+      if (fs.existsSync(meetingDbPath)) {
         try {
-          const meetingData = fs.readFileSync(meetingJsonPath, 'utf8')
-          const meeting = JSON.parse(meetingData)
-          meetings.push(meeting)
+          const db = new MeetingDb(acronym, meetingId)
+          
+          // DB에서 모든 회의 조회 (실제 회의 ID로 조회)
+          const allMeetings = db.getAllMeetings()
+          
+          for (const meeting of allMeetings) {
+            const documents = db.getAllDocuments(meeting.id)
+            const memos = db.getAllMemos(meeting.id)
+            
+            const meetingWithDocuments = {
+              ...meeting,
+              proposals: documents.proposals,
+              revisions: documents.revisions,
+              resultDocument: documents.resultDocument,
+              resultRevisions: documents.resultRevisions,
+              previousDocument: documents.previousDocument,
+              memos: memos
+            }
+            
+            meetings.push(meetingWithDocuments)
+          }
+          
+          db.close()
         } catch (error) {
           console.error(`미팅 데이터 읽기 오류 (${meetingId}):`, error)
         }

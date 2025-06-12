@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import fs from 'fs'
 import path from 'path'
+import { MeetingDb } from '@/lib/database/operations'
 
 // 파일 경로에서 안전하지 않은 문자들을 교체하는 함수
 function sanitizeForPath(str: string): string {
@@ -12,11 +13,13 @@ export async function DELETE(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url)
     const acronym = searchParams.get('acronym')
-    const meetingId = searchParams.get('meetingId')
+    const meetingId = decodeURIComponent(searchParams.get('meetingId') || '')
     const documentId = searchParams.get('documentId')
     const type = searchParams.get('type')
     const proposalId = searchParams.get('proposalId')
     const filePath = searchParams.get('filePath')
+    
+    console.log('삭제 파라미터 확인:', { acronym, meetingId, documentId, type })
     
     if (!acronym || !meetingId || !documentId || !type) {
       return NextResponse.json({ error: '필수 파라미터가 누락되었습니다' }, { status: 400 })
@@ -31,8 +34,7 @@ export async function DELETE(request: NextRequest) {
     }
 
     // meeting.json 업데이트
-    const safeMeetingId = sanitizeForPath(meetingId)
-    const meetingJsonPath = path.join(process.cwd(), 'data', acronym, safeMeetingId, 'meeting.json')
+    const meetingJsonPath = path.join(process.cwd(), 'data', acronym, meetingId, 'meeting.json')
     if (!fs.existsSync(meetingJsonPath)) {
       return NextResponse.json({ error: '회의 데이터를 찾을 수 없습니다' }, { status: 404 })
     }
@@ -48,38 +50,22 @@ export async function DELETE(request: NextRequest) {
         meetingData.proposals = meetingData.proposals.filter((p: any) => p.id !== documentId)
         // 해당 proposal의 revision도 모두 삭제
         if (proposalId) {
-          delete meetingData.revisions[proposalId]
-        }
-        // 해당 proposal의 메모도 삭제
-        if (meetingData.memos && meetingData.memos[documentId]) {
-          delete meetingData.memos[documentId]
+          meetingData.revisions = meetingData.revisions?.filter((r: any) => r.proposalId !== proposalId) || []
         }
         break
       case 'revision':
-        if (proposalId && meetingData.revisions[proposalId]) {
-          meetingData.revisions[proposalId] = meetingData.revisions[proposalId].filter((r: any) => r.id !== documentId)
-          if (meetingData.revisions[proposalId].length === 0) {
-            delete meetingData.revisions[proposalId]
-          }
-        }
-        // revision의 메모도 삭제
-        if (meetingData.memos && meetingData.memos[documentId]) {
-          delete meetingData.memos[documentId]
-        }
+        meetingData.revisions = meetingData.revisions?.filter((r: any) => r.id !== documentId) || []
         break
-      case 'result':
-        meetingData.resultDocument = null
+      case 'output':
+        meetingData.outputDocuments = meetingData.outputDocuments?.filter((o: any) => o.id !== documentId) || []
         break
-      case 'result-revision':
-        meetingData.resultRevisions = meetingData.resultRevisions.filter((r: any) => r.id !== documentId)
-        break
+      default:
+        return NextResponse.json({ error: '유효하지 않은 파일 타입입니다' }, { status: 400 })
     }
 
-    meetingData.updatedAt = new Date().toISOString()
-
-    // meeting.json 저장
+    // 업데이트된 데이터 저장
     fs.writeFileSync(meetingJsonPath, JSON.stringify(meetingData, null, 2))
-
+    
     return NextResponse.json({ message: '파일이 삭제되었습니다' })
     
   } catch (error) {

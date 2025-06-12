@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import fs from 'fs'
 import path from 'path'
+import { MeetingDb } from '@/lib/database/operations'
 
 const STANDARDS_FILE = path.join(process.cwd(), 'data', 'standards.json')
 
@@ -14,7 +15,13 @@ export async function GET() {
     const data = fs.readFileSync(STANDARDS_FILE, 'utf8')
     const standards = JSON.parse(data)
     
-    return NextResponse.json(standards)
+    // meetingIds 배열을 사용해서 간단하게 회의 정보 반환 (폴더 스캔 없음)
+    const standardsWithMeetings = standards.standards.map((standard: any) => ({
+      ...standard,
+      meetings: standard.meetingIds || [] // meetingIds를 meetings로 반환 (기존 인터페이스 호환)
+    }))
+    
+    return NextResponse.json({ standards: standardsWithMeetings })
   } catch (error) {
     console.error('표준문서 조회 오류:', error)
     return NextResponse.json({ error: '표준문서 조회 실패' }, { status: 500 })

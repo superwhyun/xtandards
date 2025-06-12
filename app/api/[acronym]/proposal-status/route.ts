@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import fs from 'fs'
-import path from 'path'
+import { MeetingDb } from '@/lib/database/operations'
 
 // 파일 경로에서 안전하지 않은 문자들을 교체하는 함수
 function sanitizeForPath(str: string): string {
@@ -19,37 +18,19 @@ export async function PUT(
       return NextResponse.json({ error: '필수 파라미터가 누락되었습니다' }, { status: 400 })
     }
 
-    // meeting.json 파일 경로
-    const safeMeetingId = sanitizeForPath(meetingId)
-    const meetingFile = path.join(process.cwd(), 'data', acronym, safeMeetingId, 'meeting.json')
+    // SQLite DB 업데이트
+    const db = new MeetingDb(acronym, meetingId)
     
-    if (!fs.existsSync(meetingFile)) {
-      return NextResponse.json({ error: '회의 데이터를 찾을 수 없습니다' }, { status: 404 })
-    }
-
-    // meeting.json 읽기
-    const meetingData = JSON.parse(fs.readFileSync(meetingFile, 'utf8'))
-
     // proposal 상태 업데이트
-    if (meetingData.proposals) {
-      meetingData.proposals = meetingData.proposals.map((proposal: any) => {
-        if (proposal.id === proposalId) {
-          return { ...proposal, status }
-        }
-        return proposal
-      })
-    }
-
-    // revision들의 상태도 업데이트
-    if (meetingData.revisions && meetingData.revisions[proposalId]) {
-      meetingData.revisions[proposalId] = meetingData.revisions[proposalId].map((revision: any) => ({
-        ...revision,
-        status
-      }))
-    }
-
-    // meeting.json 저장
-    fs.writeFileSync(meetingFile, JSON.stringify(meetingData, null, 2))
+    db.updateDocumentStatus(proposalId, status)
+    
+    // 해당 proposal의 revision들도 같은 상태로 업데이트
+    const revisions = db.getRevisions(proposalId)
+    revisions.forEach(revision => {
+      db.updateDocumentStatus(revision.id, status)
+    })
+    
+    db.close()
 
     return NextResponse.json({ 
       success: true, 

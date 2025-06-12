@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import fs from 'fs'
-import path from 'path'
+import { MeetingDb } from '@/lib/database/operations'
 
 // 파일 경로에서 안전하지 않은 문자들을 교체하는 함수
 function sanitizeForPath(str: string): string {
@@ -18,18 +17,12 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: '필수 파라미터가 누락되었습니다' }, { status: 400 })
     }
     
-    // meeting.json에서 메모 조회
-    const safeMeetingId = sanitizeForPath(meetingId)
-    const meetingJsonPath = path.join(process.cwd(), 'data', acronym, safeMeetingId, 'meeting.json')
-    if (!fs.existsSync(meetingJsonPath)) {
-      return NextResponse.json({ memos: {} })
-    }
+    // SQLite DB에서 메모 조회
+    const db = new MeetingDb(acronym, meetingId)
+    const memos = db.getAllMemos(meetingId)
+    db.close()
     
-    const meetingData = JSON.parse(fs.readFileSync(meetingJsonPath, 'utf8'))
-    
-    return NextResponse.json({ 
-      memos: meetingData.memos || {}
-    })
+    return NextResponse.json({ memos })
     
   } catch (error) {
     console.error('메모 조회 오류:', error)
@@ -46,26 +39,19 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: '필수 파라미터가 누락되었습니다' }, { status: 400 })
     }
     
-    // meeting.json 업데이트
-    const safeMeetingId = sanitizeForPath(meetingId)
-    const meetingJsonPath = path.join(process.cwd(), 'data', acronym, safeMeetingId, 'meeting.json')
+    // SQLite DB 업데이트
+    const db = new MeetingDb(acronym, meetingId)
     
-    if (!fs.existsSync(meetingJsonPath)) {
-      return NextResponse.json({ error: '회의 데이터를 찾을 수 없습니다' }, { status: 404 })
+    const memoData = {
+      meetingId: meetingId,
+      documentId: proposalId,
+      memo: memo || '',
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
     }
     
-    const meetingData = JSON.parse(fs.readFileSync(meetingJsonPath, 'utf8'))
-    
-    // 메모 업데이트
-    if (!meetingData.memos) {
-      meetingData.memos = {}
-    }
-    
-    meetingData.memos[proposalId] = memo
-    meetingData.updatedAt = new Date().toISOString()
-    
-    // meeting.json 저장
-    fs.writeFileSync(meetingJsonPath, JSON.stringify(meetingData, null, 2))
+    db.saveMemo(memoData)
+    db.close()
     
     return NextResponse.json({ 
       message: '메모가 저장되었습니다'

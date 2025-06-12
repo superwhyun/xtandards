@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import fs from 'fs'
 import path from 'path'
+import { MeetingDb } from '@/lib/database/operations'
 
 const STANDARDS_FILE = path.join(process.cwd(), 'data', 'standards.json')
 
@@ -34,21 +35,26 @@ export async function GET(
         .map(dirent => dirent.name)
       
       for (const meetingId of meetingDirs) {
-        const meetingJsonPath = path.join(standardDir, meetingId, 'meeting.json')
-        if (fs.existsSync(meetingJsonPath)) {
+        const meetingDbPath = path.join(standardDir, meetingId, 'meeting.db')
+        if (fs.existsSync(meetingDbPath)) {
           try {
-            const meetingData = fs.readFileSync(meetingJsonPath, 'utf8')
-            const meeting = JSON.parse(meetingData)
-            meetings.push({
-              id: meeting.id,
-              title: meeting.title,
-              startDate: meeting.startDate,
-              endDate: meeting.endDate,
-              description: meeting.description,
-              isCompleted: meeting.isCompleted,
-              createdAt: meeting.createdAt,
-              updatedAt: meeting.updatedAt
-            })
+            const db = new MeetingDb(acronym, meetingId)
+            const allMeetings = db.getAllMeetings()
+            
+            for (const meeting of allMeetings) {
+              meetings.push({
+                id: meeting.id,
+                title: meeting.title,
+                startDate: meeting.startDate,
+                endDate: meeting.endDate,
+                description: meeting.description,
+                isCompleted: meeting.isCompleted,
+                createdAt: meeting.createdAt,
+                updatedAt: meeting.updatedAt
+              })
+            }
+            
+            db.close()
           } catch (error) {
             console.error(`미팅 데이터 읽기 오류 (${meetingId}):`, error)
           }

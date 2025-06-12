@@ -17,8 +17,7 @@ export async function PUT(request: NextRequest) {
     }
     
     // meeting.json 업데이트
-    const safeMeetingId = sanitizeForPath(meetingId)
-    const meetingJsonPath = path.join(process.cwd(), 'data', acronym, safeMeetingId, 'meeting.json')
+    const meetingJsonPath = path.join(process.cwd(), 'data', acronym, meetingId, 'meeting.json')
     
     if (!fs.existsSync(meetingJsonPath)) {
       return NextResponse.json({ error: '회의 데이터를 찾을 수 없습니다' }, { status: 404 })

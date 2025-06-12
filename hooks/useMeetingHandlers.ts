@@ -25,9 +25,11 @@ export function useMeetingHandlers(standard: Standard | null, setStandard: (s: S
 
   // 파일 업로드 핸들러
   const handleFileUpload = useCallback(async (files: FileList, meetingId: string, type: string, proposalId?: string) => {
+    console.log('handleFileUpload 호출됨:', { meetingId, type, proposalId })
     if (!standard || files.length === 0) return;
     const file = files[0];
     const meeting = standard.meetings.find(m => m.id === meetingId);
+    console.log('meeting 찾기 결과:', { meetingId, meeting: meeting ? meeting.id : 'NOT_FOUND' })
     if (!meeting) return;
 
     let extractedTitle = "";

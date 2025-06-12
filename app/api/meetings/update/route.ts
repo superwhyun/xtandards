@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import fs from 'fs'
-import path from 'path'
+import { MeetingDb } from '@/lib/database/operations'
 
 // 파일 경로에서 안전하지 않은 문자들을 교체하는 함수
 function sanitizeForPath(str: string): string {
@@ -16,19 +15,10 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: '필수 파라미터가 누락되었습니다' }, { status: 400 })
     }
     
-    // meeting.json 업데이트
-    const safeMeetingId = sanitizeForPath(meetingId)
-    const meetingJsonPath = path.join(process.cwd(), 'data', acronym, safeMeetingId, 'meeting.json')
-    
-    if (!fs.existsSync(meetingJsonPath)) {
-      return NextResponse.json({ error: '회의를 찾을 수 없습니다' }, { status: 404 })
-    }
-    
-    const meetingData = JSON.parse(fs.readFileSync(meetingJsonPath, 'utf8'))
-    meetingData.isCompleted = isCompleted
-    meetingData.updatedAt = new Date().toISOString()
-    
-    fs.writeFileSync(meetingJsonPath, JSON.stringify(meetingData, null, 2))
+    // SQLite DB 업데이트
+    const db = new MeetingDb(acronym, meetingId)
+    db.updateMeetingCompletion(meetingId, isCompleted)
+    db.close()
     
     return NextResponse.json({ 
       message: '회의 상태가 업데이트되었습니다',

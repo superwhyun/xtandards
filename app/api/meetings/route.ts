@@ -1,12 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
 import fs from 'fs'
 import path from 'path'
+import { MeetingDb } from '@/lib/database/operations'
 
 const STANDARDS_FILE = path.join(process.cwd(), 'data', 'standards.json')
 
 // 파일 경로에서 안전하지 않은 문자들을 교체하는 함수
 function sanitizeForPath(str: string): string {
-  return str.replace(/[\/\\:*?"<>|]/g, '_')
+  return str.replace(/[\/\\:*?"<>|\s]/g, '_')
 }
 
 // 회의 생성
@@ -40,21 +41,20 @@ export async function POST(request: NextRequest) {
         const yearMonth = startDateObj.getFullYear().toString().slice(2) + 
                          (startDateObj.getMonth() + 1).toString().padStart(2, '0')
         
-        // 중복 ID 체크 및 유니크 ID 생성
-        let uniqueId = `${yearMonth}-${title}`
+        // 중복 ID 체크 및 유니크 ID 생성 (처음부터 sanitize)
+        let uniqueId = sanitizeForPath(`${yearMonth}-${title}`)
         let counter = 1
-        while (fs.existsSync(path.join(standardDir, sanitizeForPath(uniqueId)))) {
-          uniqueId = `${yearMonth}-${title} (${counter})`
+        while (fs.existsSync(path.join(standardDir, uniqueId))) {
+          uniqueId = sanitizeForPath(`${yearMonth}-${title} (${counter})`)
           counter++
         }
         
-        // 회의 폴더 생성
-        const safeMeetingId = sanitizeForPath(uniqueId)
-        const meetingDir = path.join(standardDir, safeMeetingId)
+        // 회의 폴더 생성 (이미 sanitize된 ID 사용)
+        const meetingDir = path.join(standardDir, uniqueId)
         fs.mkdirSync(meetingDir, { recursive: true })
 
-        // meeting.json 생성
-        const meetingJsonPath = path.join(meetingDir, 'meeting.json')
+        // SQLite DB 생성 및 회의 데이터 저장
+        const db = new MeetingDb(acronym, uniqueId)
         const meetingData = {
           id: uniqueId,
           title,
@@ -62,17 +62,36 @@ export async function POST(request: NextRequest) {
           endDate,
           description: description || '',
           isCompleted: false,
-          proposals: [],
-          revisions: {},
-          resultRevisions: [],
           previousDocument: null,
           resultDocument: null,
-          memos: {},
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString()
         }
 
-        fs.writeFileSync(meetingJsonPath, JSON.stringify(meetingData, null, 2))
+        db.saveMeeting(meetingData)
+        db.close()
+        
+        // standards.json에 meetingId 추가
+        try {
+          if (fs.existsSync(STANDARDS_FILE)) {
+            const standardsData = fs.readFileSync(STANDARDS_FILE, 'utf8')
+            const standardsJson = JSON.parse(standardsData)
+            
+            const standardIndex = standardsJson.standards.findIndex((s: any) => s.acronym === acronym)
+            if (standardIndex !== -1) {
+              if (!standardsJson.standards[standardIndex].meetingIds) {
+                standardsJson.standards[standardIndex].meetingIds = []
+              }
+              standardsJson.standards[standardIndex].meetingIds.push(uniqueId)
+              standardsJson.standards[standardIndex].updatedAt = new Date().toISOString()
+              
+              fs.writeFileSync(STANDARDS_FILE, JSON.stringify(standardsJson, null, 2))
+            }
+          }
+        } catch (error) {
+          console.error(`standards.json 업데이트 오류 (${acronym}):`, error)
+        }
+        
         createdCount++
         
       } catch (error) {
@@ -125,14 +144,15 @@ export async function GET() {
           .map(dirent => dirent.name)
         
         for (const meetingId of meetingDirs) {
-          const meetingJsonPath = path.join(standardDir, meetingId, 'meeting.json')
-          if (fs.existsSync(meetingJsonPath)) {
+          const meetingDbPath = path.join(standardDir, meetingId, 'meeting.db')
+          if (fs.existsSync(meetingDbPath)) {
             try {
-              const meetingData = fs.readFileSync(meetingJsonPath, 'utf8')
-              const meeting = JSON.parse(meetingData)
-              if (meeting.title && meeting.title.trim()) {
+              const db = new MeetingDb(acronym, meetingId)
+              const meeting = db.getMeeting(meetingId)
+              if (meeting && meeting.title && meeting.title.trim()) {
                 titles.add(meeting.title.trim())
               }
+              db.close()
             } catch (error) {
               console.error(`미팅 데이터 읽기 오류 (${acronym}/${meetingId}):`, error)
             }
