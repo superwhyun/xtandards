@@ -1,6 +1,7 @@
 import React, { useState, useCallback } from "react";
 import { cn } from "@/lib/utils";
 import { Upload } from "lucide-react";
+import { useLanguage } from "@/contexts/LanguageContext";
 
 interface DropZoneProps {
   onDrop: (files: FileList) => void;
@@ -17,6 +18,7 @@ export default function DropZone({
   variant = "default",
   hidden = false,
 }: DropZoneProps) {
+  const { t } = useLanguage()
   const [isDragOver, setIsDragOver] = useState(false);
 
   const handleDragOver = useCallback((e: React.DragEvent) => {
@@ -84,9 +86,7 @@ export default function DropZone({
                 color: isDragOver ? "#2563eb" : "#4b5563"
               }}
             >
-              파일을 드래그하여
-              <br />
-              업로드하세요
+              {t('document.dragDropFiles')}
             </p>
           </>
         )}

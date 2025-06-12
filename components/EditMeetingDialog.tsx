@@ -7,6 +7,7 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Edit, Save, X } from "lucide-react"
+import { useLanguage } from "@/contexts/LanguageContext"
 
 interface Meeting {
   id: string
@@ -25,6 +26,7 @@ interface EditMeetingDialogProps {
 }
 
 export default function EditMeetingDialog({ meeting, isOpen, onOpenChange, onSave }: EditMeetingDialogProps) {
+  const { t } = useLanguage()
   const [formData, setFormData] = useState({
     title: "",
     startDate: "",
@@ -96,13 +98,13 @@ export default function EditMeetingDialog({ meeting, isOpen, onOpenChange, onSav
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Edit className="h-5 w-5" />
-            회의 정보 수정
+            {t('dialog.editMeetingTitle')}
           </DialogTitle>
         </DialogHeader>
         
         <div className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="meetingTitle">회의 제목 *</Label>
+            <Label htmlFor="meetingTitle">{t('standard.meetingTitle')} *</Label>
             <Input
               id="meetingTitle"
               value={formData.title}
@@ -116,7 +118,7 @@ export default function EditMeetingDialog({ meeting, isOpen, onOpenChange, onSav
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="meetingStartDate">회의 시작날짜 *</Label>
+            <Label htmlFor="meetingStartDate">{t('standard.meetingDate')} (시작) *</Label>
             <Input
               id="meetingStartDate"
               type="date"
@@ -130,7 +132,7 @@ export default function EditMeetingDialog({ meeting, isOpen, onOpenChange, onSav
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="meetingEndDate">회의 종료날짜 *</Label>
+            <Label htmlFor="meetingEndDate">{t('standard.meetingDate')} (종료) *</Label>
             <Input
               id="meetingEndDate"
               type="date"
@@ -144,7 +146,7 @@ export default function EditMeetingDialog({ meeting, isOpen, onOpenChange, onSav
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="meetingDescription">회의 설명</Label>
+            <Label htmlFor="meetingDescription">{t('standard.meetingDescription')}</Label>
             <Textarea
               id="meetingDescription"
               value={formData.description}
@@ -161,7 +163,7 @@ export default function EditMeetingDialog({ meeting, isOpen, onOpenChange, onSav
             </Button>
             <Button onClick={handleSave} className="flex-1 gap-2">
               <Save className="h-4 w-4" />
-              저장
+              {t('common.save')}
             </Button>
           </div>
         </div>

@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Download, Trash2, FileText } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useLanguage } from "@/contexts/LanguageContext";
 
 import { Document } from "@/types/standard"
 
@@ -27,16 +28,17 @@ export default function DocumentCard({
   isLatest = false,
   revisionIndex,
 }: DocumentCardProps) {
+  const { t } = useLanguage()
   const getTypeInfo = (type: string) => {
     switch (type) {
       case "previous":
-        return { label: "Base Document", color: "bg-slate-100 text-slate-700", icon: "📄" };
+        return { label: t('document.baseDocument'), color: "bg-slate-100 text-slate-700", icon: "📄" };
       case "proposal":
-        return { label: "기고서", color: "bg-blue-100 text-blue-700", icon: "📝" };
+        return { label: t('document.proposal'), color: "bg-blue-100 text-blue-700", icon: "📝" };
       case "revision":
-        return { label: "수정본", color: "bg-amber-100 text-amber-700", icon: "🔄" };
+        return { label: t('document.revision'), color: "bg-amber-100 text-amber-700", icon: "🔄" };
       case "result":
-        return { label: "Output Document", color: "bg-green-100 text-green-700", icon: "✅" };
+        return { label: t('document.outputDocument'), color: "bg-green-100 text-green-700", icon: "✅" };
       default:
         return { label: "문서", color: "bg-gray-100 text-gray-700", icon: "📄" };
     }
@@ -113,7 +115,7 @@ export default function DocumentCard({
               {document.uploader && (
                 <>
                   <span>•</span>
-                  <span>by {document.uploader}</span>
+                  <span>{t('document.uploadedBy')} {document.uploader}</span>
                 </>
               )}
             </div>

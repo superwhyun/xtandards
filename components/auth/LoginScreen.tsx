@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Shield, Users } from "lucide-react"
+import { useLanguage } from "@/contexts/LanguageContext"
 
 export type UserRole = "chair" | "contributor"
 
@@ -20,6 +21,7 @@ interface LoginScreenProps {
 }
 
 export default function LoginScreen({ onLogin }: LoginScreenProps) {
+  const { t } = useLanguage()
   const [selectedRole, setSelectedRole] = useState<UserRole | null>(null)
   const [password, setPassword] = useState("")
   const [username, setUsername] = useState("")
@@ -39,18 +41,18 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
 
   const handleLogin = async () => {
     if (!selectedRole || !password) {
-      setError("역할과 비밀번호를 모두 입력해주세요")
+      setError(t('auth.loginFailed'))
       return
     }
     
     if (selectedRole === "contributor" && !username) {
-      setError("사용자명을 입력해주세요")
+      setError(t('auth.enterUsername'))
       return
     }
 
     const success = await onLogin(selectedRole, password, username)
     if (!success) {
-      setError("비밀번호가 올바르지 않습니다")
+      setError(t('auth.loginFailed'))
       setPassword("")
     }
   }
@@ -61,9 +63,9 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
         <div className="container mx-auto p-6 max-w-2xl">
           <div className="mb-8 text-center">
             <h1 className="text-4xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent mb-2">
-              표준문서 관리 시스템
+              {t('main.title')}
             </h1>
-            <p className="text-gray-600 text-lg">역할을 선택하여 로그인하세요</p>
+            <p className="text-gray-600 text-lg">{t('auth.selectRole')}</p>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -75,7 +77,7 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
                 <div className="bg-blue-100 rounded-full p-4 mx-auto mb-3 w-16 h-16 flex items-center justify-center">
                   <Shield className="h-8 w-8 text-blue-600" />
                 </div>
-                <CardTitle className="text-xl font-bold text-blue-700">Chair</CardTitle>
+                <CardTitle className="text-xl font-bold text-blue-700">{t('auth.chair')}</CardTitle>
               </CardHeader>
               <CardContent className="text-center">
                 <p className="text-gray-600 mb-4">회의 주관자</p>
@@ -96,7 +98,7 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
                 <div className="bg-green-100 rounded-full p-4 mx-auto mb-3 w-16 h-16 flex items-center justify-center">
                   <Users className="h-8 w-8 text-green-600" />
                 </div>
-                <CardTitle className="text-xl font-bold text-green-700">Contributor</CardTitle>
+                <CardTitle className="text-xl font-bold text-green-700">{t('auth.contributor')}</CardTitle>
               </CardHeader>
               <CardContent className="text-center">
                 <p className="text-gray-600 mb-4">기고자</p>
@@ -131,31 +133,31 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
             <CardTitle className={`text-xl font-bold ${
               selectedRole === "chair" ? "text-blue-700" : "text-green-700"
             }`}>
-              {selectedRole === "chair" ? "Chair" : "Contributor"} 로그인
+              {selectedRole === "chair" ? t('auth.chair') : t('auth.contributor')} {t('auth.login')}
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             {selectedRole === "contributor" && (
               <div className="space-y-2">
-                <Label htmlFor="username">사용자명</Label>
+                <Label htmlFor="username">{t('auth.username')}</Label>
                 <Input
                   id="username"
                   type="text"
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
-                  placeholder="사용자명을 입력하세요"
+                  placeholder={t('auth.enterUsername')}
                 />
               </div>
             )}
             <div className="space-y-2">
-              <Label htmlFor="password">비밀번호</Label>
+              <Label htmlFor="password">{t('auth.password')}</Label>
               <Input
                 id="password"
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 onKeyPress={(e) => e.key === "Enter" && handleLogin()}
-                placeholder="비밀번호를 입력하세요"
+                placeholder={t('auth.enterPassword')}
               />
               {error && (
                 <p className="text-red-500 text-sm">{error}</p>
@@ -167,14 +169,14 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
                 onClick={() => setSelectedRole(null)} 
                 className="flex-1"
               >
-                뒤로
+                {t('common.back')}
               </Button>
               <Button 
                 onClick={handleLogin} 
                 className="flex-1"
                 disabled={!password || (selectedRole === "contributor" && !username)}
               >
-                로그인
+                {t('auth.login')}
               </Button>
             </div>
           </CardContent>

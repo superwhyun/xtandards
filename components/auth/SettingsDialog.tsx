@@ -6,7 +6,9 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { Settings, Save, Eye, EyeOff } from "lucide-react"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Settings, Save, Eye, EyeOff, Languages } from "lucide-react"
+import { useLanguage } from "@/contexts/LanguageContext"
 
 interface SettingsDialogProps {
   isOpen: boolean
@@ -14,6 +16,7 @@ interface SettingsDialogProps {
 }
 
 export default function SettingsDialog({ isOpen, onOpenChange }: SettingsDialogProps) {
+  const { t, language, changeLanguage } = useLanguage()
   const [chairPassword, setChairPassword] = useState("")
   const [contributorPassword, setContributorPassword] = useState("")
   const [showChairPassword, setShowChairPassword] = useState(false)
@@ -40,6 +43,24 @@ export default function SettingsDialog({ isOpen, onOpenChange }: SettingsDialogP
     }
   }
 
+  const handleLanguageChange = async (newLanguage: string) => {
+    try {
+      setLoading(true)
+      const success = await changeLanguage(newLanguage)
+      if (success) {
+        setSuccess(t('messages.languageChanged'))
+        setTimeout(() => setSuccess(""), 1500)
+      } else {
+        setSuccess(t('messages.saveError'))
+      }
+    } catch (error) {
+      console.error('언어 변경 오류:', error)
+      setSuccess(t('messages.saveError'))
+    } finally {
+      setLoading(false)
+    }
+  }
+
   const handleSave = async () => {
     if (!chairPassword || !contributorPassword) {
       return
@@ -57,17 +78,17 @@ export default function SettingsDialog({ isOpen, onOpenChange }: SettingsDialogP
       })
 
       if (response.ok) {
-        setSuccess("비밀번호가 성공적으로 변경되었습니다")
+        setSuccess(t('messages.passwordChanged'))
         setTimeout(() => {
           setSuccess("")
           onOpenChange(false)
         }, 1500)
       } else {
-        setSuccess("비밀번호 변경에 실패했습니다")
+        setSuccess(t('messages.saveError'))
       }
     } catch (error) {
       console.error('비밀번호 변경 오류:', error)
-      setSuccess("비밀번호 변경 중 오류가 발생했습니다")
+      setSuccess(t('messages.saveError'))
     } finally {
       setLoading(false)
     }
@@ -86,24 +107,47 @@ export default function SettingsDialog({ isOpen, onOpenChange }: SettingsDialogP
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Settings className="h-5 w-5" />
-            시스템 설정
+            {t('dialog.settingsTitle')}
           </DialogTitle>
         </DialogHeader>
         <div className="space-y-6">
           <Card>
             <CardHeader className="pb-3">
-              <CardTitle className="text-lg">비밀번호 관리</CardTitle>
+              <CardTitle className="text-lg flex items-center gap-2">
+                <Languages className="h-5 w-5" />
+                {t('common.language')}
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-2">
+                <Label htmlFor="language">{t('common.language')}</Label>
+                <Select value={language} onValueChange={handleLanguageChange}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="ko">한국어</SelectItem>
+                    <SelectItem value="en">English</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-lg">{t('dialog.changePassword')}</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="chairPassword">Chair 비밀번호</Label>
+                <Label htmlFor="chairPassword">{t('auth.chair')} {t('auth.password')}</Label>
                 <div className="relative">
                   <Input
                     id="chairPassword"
                     type={showChairPassword ? "text" : "password"}
                     value={chairPassword}
                     onChange={(e) => setChairPassword(e.target.value)}
-                    placeholder="Chair 비밀번호"
+                    placeholder={`${t('auth.chair')} ${t('auth.password')}`}
                   />
                   <Button
                     type="button"
@@ -122,14 +166,14 @@ export default function SettingsDialog({ isOpen, onOpenChange }: SettingsDialogP
               </div>
               
               <div className="space-y-2">
-                <Label htmlFor="contributorPassword">Contributor 비밀번호</Label>
+                <Label htmlFor="contributorPassword">{t('auth.contributor')} {t('auth.password')}</Label>
                 <div className="relative">
                   <Input
                     id="contributorPassword"
                     type={showContributorPassword ? "text" : "password"}
                     value={contributorPassword}
                     onChange={(e) => setContributorPassword(e.target.value)}
-                    placeholder="Contributor 비밀번호"
+                    placeholder={`${t('auth.contributor')} ${t('auth.password')}`}
                   />
                   <Button
                     type="button"
@@ -157,11 +201,11 @@ export default function SettingsDialog({ isOpen, onOpenChange }: SettingsDialogP
 
           <div className="flex gap-2">
             <Button variant="outline" onClick={() => onOpenChange(false)} className="flex-1">
-              취소
+              {t('common.cancel')}
             </Button>
             <Button onClick={handleSave} className="flex-1 gap-2" disabled={!chairPassword || !contributorPassword || loading}>
               <Save className="h-4 w-4" />
-              {loading ? '저장 중...' : '저장'}
+              {loading ? t('common.loading') : t('common.save')}
             </Button>
           </div>
         </div>

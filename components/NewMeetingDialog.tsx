@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Plus } from "lucide-react";
+import { useLanguage } from "@/contexts/LanguageContext";
 
 interface NewMeetingDialogProps {
   onCreateMeeting: (meeting: { startDate: string; endDate: string; title: string; description?: string }) => void;
@@ -13,6 +14,7 @@ interface NewMeetingDialogProps {
 export default function NewMeetingDialog({
   onCreateMeeting,
 }: NewMeetingDialogProps) {
+  const { t } = useLanguage()
   const [open, setOpen] = useState(false);
   const [formData, setFormData] = useState({
     startDate: new Date().toISOString().split('T')[0],
@@ -37,16 +39,16 @@ export default function NewMeetingDialog({
           className="w-full h-16 border-2 border-dashed border-gray-300 hover:border-blue-400 hover:bg-blue-50 transition-all duration-300"
         >
           <Plus className="h-6 w-6 mr-2" />
-          새 회의 추가
+          {t('standard.newMeeting')} 추가
         </Button>
       </DialogTrigger>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>새 회의 등록</DialogTitle>
+          <DialogTitle>{t('dialog.newMeetingTitle')}</DialogTitle>
         </DialogHeader>
         <div className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="startDate">회의 시작날짜</Label>
+            <Label htmlFor="startDate">{t('standard.meetingDate')} (시작)</Label>
             <Input
               id="startDate"
               type="date"
@@ -55,7 +57,7 @@ export default function NewMeetingDialog({
             />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="endDate">회의 종료날짜</Label>
+            <Label htmlFor="endDate">{t('standard.meetingDate')} (종료)</Label>
             <Input
               id="endDate"
               type="date"
@@ -64,7 +66,7 @@ export default function NewMeetingDialog({
             />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="title">회의 제목</Label>
+            <Label htmlFor="title">{t('standard.meetingTitle')}</Label>
             <Input
               id="title"
               placeholder="예: 24.07, Seoul"
@@ -73,20 +75,20 @@ export default function NewMeetingDialog({
             />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="description">설명 (선택)</Label>
+            <Label htmlFor="description">{t('standard.meetingDescription')} (선택)</Label>
             <Textarea
               id="description"
-              placeholder="회의 내용 설명..."
+              placeholder={t('standard.meetingDescription')}
               value={formData.description}
               onChange={(e) => setFormData({ ...formData, description: e.target.value })}
             />
           </div>
           <div className="flex gap-2">
             <Button variant="outline" onClick={() => setOpen(false)} className="flex-1">
-              취소
+              {t('common.cancel')}
             </Button>
             <Button onClick={handleSubmit} className="flex-1" disabled={!formData.startDate || !formData.endDate || !formData.title}>
-              생성
+              {t('common.add')}
             </Button>
           </div>
         </div>

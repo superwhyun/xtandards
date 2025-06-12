@@ -1,5 +1,6 @@
 import React, { useEffect, useRef } from "react";
 import { Document } from "@/types/standard";
+import { useLanguage } from "@/contexts/LanguageContext";
 
 interface MemoSectionProps {
   proposal: Document;
@@ -18,6 +19,7 @@ export default function MemoSection({
   onMemoBlur,
   onMemoToggle
 }: MemoSectionProps) {
+  const { t } = useLanguage()
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const originalValueRef = useRef(memo);
   const currentValueRef = useRef(memo);
@@ -52,13 +54,13 @@ export default function MemoSection({
   return (
     <div className="mt-4 border-t border-gray-600 pt-4">
       <label className="block text-sm font-medium text-gray-200 mb-2">
-        회의 논의 내용 (기고서: {proposal.name})
+        회의 논의 내용 ({t('document.proposal')}: {proposal.name})
       </label>
       <textarea
         ref={textareaRef}
         className="w-full p-3 border border-gray-300 rounded-lg resize-y focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900 bg-white min-h-24"
         rows={6}
-        placeholder="이 기고서에 대한 회의 논의 내용을 입력하세요..."
+        placeholder={t('document.memo')}
         value={memo}
         onChange={handleChange}
         onBlur={handleBlur}

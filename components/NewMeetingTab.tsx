@@ -6,6 +6,7 @@ import DocumentCard from "@/components/DocumentCard"
 import MemoSection from "@/components/MemoSection"
 import { Meeting } from "@/types/standard"
 import { UserRole } from "@/components/auth/LoginScreen"
+import { useLanguage } from "@/contexts/LanguageContext"
 
 interface NewMeetingTabProps {
   meeting: Meeting
@@ -34,6 +35,7 @@ export default function NewMeetingTab({
   onProposalReorder,
   expandedMemos
 }: NewMeetingTabProps) {
+  const { t } = useLanguage()
   const [localMemos, setLocalMemos] = useState<{ [key: string]: string }>({})
   const [hasInitialized, setHasInitialized] = useState(false)
   const [collapsedProposals, setCollapsedProposals] = useState<{ [key: string]: boolean }>({})
@@ -134,7 +136,7 @@ export default function NewMeetingTab({
       {/* Base Document Section */}
       <section className="bg-gray-900 border border-gray-700 rounded-lg p-6 border-l-4 border-l-blue-500">
         <h2 className="text-xl font-mono font-semibold text-gray-100 mb-4 border-b border-gray-700 pb-2">
-          BASE DOCUMENT
+          {t('document.baseDocument').toUpperCase()}
         </h2>
         {meeting.previousDocument ? (
           <div className="w-full">
@@ -424,7 +426,7 @@ export default function NewMeetingTab({
                 <div className="bg-gray-800 border border-green-500 rounded-lg p-3">
                   <h4 className="text-xs font-mono font-medium text-green-400 mb-2 flex items-center gap-1">
                     <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                    ACCEPTED PROPOSALS
+                    {t('document.accepted').toUpperCase()} {t('document.proposals').toUpperCase()}
                   </h4>
                   <div className="space-y-2">
                     {acceptedProposals.map(proposal => {
@@ -454,7 +456,7 @@ export default function NewMeetingTab({
                 <div className="bg-gray-800 border border-red-500 rounded-lg p-3">
                   <h4 className="text-xs font-mono font-medium text-red-400 mb-2 flex items-center gap-1">
                     <div className="w-2 h-2 bg-red-500 rounded-full"></div>
-                    REJECTED PROPOSALS
+                    {t('document.rejected').toUpperCase()} {t('document.proposals').toUpperCase()}
                   </h4>
                   <div className="space-y-2">
                     {rejectedProposals.map(proposal => {

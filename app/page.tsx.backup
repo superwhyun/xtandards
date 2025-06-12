@@ -123,14 +123,14 @@ function MeetingCreateDialog({
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle>{t('dialog.newMeetingTitle')}</DialogTitle>
+          <DialogTitle>새 회의 생성</DialogTitle>
         </DialogHeader>
         <div className="space-y-4">
           <div className="space-y-2">
-            <Label>{t('main.standardList')} 선택</Label>
+            <Label>표준문서 선택</Label>
             {loading ? (
               <div className="text-center py-4 text-gray-500">
-                {t('common.loading')}
+                표준문서를 불러오는 중...
               </div>
             ) : (
               <div className="grid grid-cols-2 gap-2 max-h-40 overflow-y-auto border rounded p-2">
@@ -149,12 +149,12 @@ function MeetingCreateDialog({
               </div>
             )}
             <div className="text-sm text-gray-600">
-              선택된 {t('main.standardList')}: {selectedStandards.size}개
+              선택된 표준문서: {selectedStandards.size}개
             </div>
           </div>
           
           <div className="space-y-2">
-            <Label htmlFor="startDate">{t('standard.meetingDate')} (시작)</Label>
+            <Label htmlFor="startDate">회의 시작날짜</Label>
             <Input
               id="startDate"
               type="date"
@@ -163,7 +163,7 @@ function MeetingCreateDialog({
             />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="endDate">{t('standard.meetingDate')} (종료)</Label>
+            <Label htmlFor="endDate">회의 종료날짜</Label>
             <Input
               id="endDate"
               type="date"
@@ -175,16 +175,16 @@ function MeetingCreateDialog({
             <Label htmlFor="title">회의 제목</Label>
             <Input
               id="title"
-              placeholder={t('standard.meetingTitle')}
+              placeholder="회의 제목을 입력하세요"
               value={formData.title}
               onChange={(e) => setFormData({ ...formData, title: e.target.value })}
             />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="description">{t('standard.meetingDescription')} (선택)</Label>
+            <Label htmlFor="description">설명 (선택)</Label>
             <Textarea
               id="description"
-              placeholder={t('standard.meetingDescription')}
+              placeholder="회의에 대한 설명을 입력하세요"
               value={formData.description}
               onChange={(e) => setFormData({ ...formData, description: e.target.value })}
             />
@@ -198,7 +198,7 @@ function MeetingCreateDialog({
               className="flex-1" 
               disabled={!formData.startDate || !formData.endDate || !formData.title || selectedStandards.size === 0}
             >
-              {t('standard.meeting')} {t('common.add')}
+              회의 생성
             </Button>
           </div>
         </div>
@@ -212,8 +212,7 @@ function NewStandardDialog({
 }: {
   onCreateStandard: (standard: { acronym: string; title: string }) => void
 }) {
-  const { t } = useLanguage();
-
+  const { t } = useLanguage()
   const [open, setOpen] = useState(false)
   const [formData, setFormData] = useState({
     acronym: "",
@@ -237,17 +236,17 @@ function NewStandardDialog({
               <Plus className="h-6 w-6 text-blue-600" />
             </div>
             <p className="text-blue-700 font-medium text-sm">{t('main.newStandard')}</p>
-            <p className="text-blue-600 text-xs mt-1">{t('main.newStandardSub')}</p>
+            <p className="text-blue-600 text-xs mt-1">표준안을 추가하세요</p>
           </CardContent>
         </Card>
       </DialogTrigger>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>새 표준문서 등록</DialogTitle>
+          <DialogTitle>{t('dialog.newStandardTitle')}</DialogTitle>
         </DialogHeader>
         <div className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="acronym">표준문서 약어 (Acronym)</Label>
+            <Label htmlFor="acronym">{t('standard.acronym')}</Label>
             <Input
               id="acronym"
               placeholder="예: ISO-27001, NIST-CSF"
@@ -256,7 +255,7 @@ function NewStandardDialog({
             />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="title">표준문서 제목</Label>
+            <Label htmlFor="title">{t('standard.title')}</Label>
             <Textarea
               id="title"
               placeholder="예: Information Security Management Systems"
@@ -266,10 +265,11 @@ function NewStandardDialog({
           </div>
           <div className="flex gap-2">
             <Button variant="outline" onClick={() => setOpen(false)} className="flex-1">
-              취소
+              {t('common.cancel')}
             </Button>
             <Button onClick={handleSubmit} className="flex-1" disabled={!formData.acronym || !formData.title}>
-              등록
+              {t('common.add')}
+            </Button>
             </Button>
           </div>
         </div>
@@ -307,15 +307,15 @@ export default function Page() {
       console.log('API 호출: GET /api/standards')
       const response = await fetch('/api/standards')
       if (!response.ok) {
-        alert('표준문서 데이터를 조회할 수 없습니다.')
+        alert(t('messages.uploadError'))
         return
       }
       
       const data = await response.json()
       const allStandards = data.standards
       
-      let agendaContent = `# ${meetingTitle} - 회의 Agenda\n\n`
-      agendaContent += `생성일: ${new Date().toLocaleDateString('ko-KR')}\n\n`
+      let agendaContent = `# ${meetingTitle} - ${t('standard.meeting')} Agenda\n\n`
+      agendaContent += `${t('standard.createDate')}: ${new Date().toLocaleDateString('ko-KR')}\n\n`
       
       // 모든 표준문서에서 해당 회의명과 일치하는 회의들 찾기
       for (const standard of allStandards) {
@@ -333,25 +333,25 @@ export default function Page() {
         
         // 기존 베이스라인 문서
         if (targetMeeting.previousDocument) {
-          agendaContent += `#### 기존 베이스라인 문서\n`
+          agendaContent += `#### ${t('document.baseDocument')}\n`
           agendaContent += `- ${targetMeeting.previousDocument.name}\n\n`
         }
         
         // 기고서 문서들
         if (targetMeeting.proposals && targetMeeting.proposals.length > 0) {
-          agendaContent += `#### 기고서 문서들\n`
+          agendaContent += `#### ${t('document.proposals')}\n`
           targetMeeting.proposals.forEach((proposal: any, index: number) => {
             agendaContent += `${index + 1}. ${proposal.name}\n`
             // 수정본들도 포함
             if (targetMeeting.revisions && targetMeeting.revisions[proposal.id]) {
               targetMeeting.revisions[proposal.id].forEach((revision: any, revIndex: number) => {
-                agendaContent += `   - 수정본 ${revIndex + 1}: ${revision.name}\n`
+                agendaContent += `   - ${t('document.revision')} ${revIndex + 1}: ${revision.name}\n`
               })
             }
           })
           agendaContent += `\n`
         } else {
-          agendaContent += `#### 기고서 문서들\n`
+          agendaContent += `#### ${t('document.proposals')}\n`
           agendaContent += `이번 회의에는 기고서가 제출되지 않아 논의되지 않았습니다.\n\n`
         }
         
@@ -371,7 +371,7 @@ export default function Page() {
       
     } catch (error) {
       console.error('Agenda 생성 오류:', error)
-      alert('Agenda 생성 중 오류가 발생했습니다.')
+      alert(t('messages.saveError'))
     }
   }
 
@@ -643,7 +643,7 @@ export default function Page() {
       <div className="min-h-screen bg-gradient-to-br from-slate-50 to-gray-100 flex items-center justify-center">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">로딩 중...</p>
+          <p className="text-gray-600">{t('common.loading')}</p>
         </div>
       </div>
     )
@@ -747,7 +747,7 @@ export default function Page() {
                     className="gap-2 bg-green-600 hover:bg-green-700"
                   >
                     <Plus className="h-4 w-4" />
-                    {t('common.genMeeting')}
+                    회의 생성
                   </Button>
                   
                   <Button
@@ -757,7 +757,7 @@ export default function Page() {
                     className="gap-2"
                   >
                     <FileStack className="h-4 w-4" />
-                    {t('common.genAgenda')}
+                    Agenda 생성
                   </Button>
                   
                   <Button
@@ -767,7 +767,7 @@ export default function Page() {
                     className="gap-2"
                   >
                     <ClipboardList className="h-4 w-4" />
-                    {t('common.genReport')}
+                    회의록 생성
                   </Button>
                 </div>
               )}
@@ -779,7 +779,7 @@ export default function Page() {
                   className="gap-2"
                 >
                   <Settings className="h-4 w-4" />
-                  설정
+                  {t('common.settings')}
                 </Button>
               )}
               <Button
@@ -789,7 +789,7 @@ export default function Page() {
                 className="gap-2"
               >
                 <LogOut className="h-4 w-4" />
-                로그아웃
+                {t('common.logout')}
               </Button>
             </div>
           </div>
@@ -867,12 +867,12 @@ export default function Page() {
 
         {/* 기고서 업로드 영역 */}
         <div className="mt-8 bg-white rounded-2xl p-6 shadow-lg border border-gray-200">
-          <h2 className="text-xl font-bold text-gray-800 mb-4">{t('main.uploadContributions')}</h2>
+          <h2 className="text-xl font-bold text-gray-800 mb-4">{t('document.proposals')} {t('common.upload')}</h2>
           
           {/* 업로드된 기고서 목록 */}
           {uploadedProposals.length > 0 && (
             <div className="mb-6">
-              <h3 className="text-lg font-semibold text-gray-700 mb-3">업로드된 기고서</h3>
+              <h3 className="text-lg font-semibold text-gray-700 mb-3">{t('document.proposals')} {t('common.upload')}</h3>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {uploadedProposals.map((proposal, index) => (
                   <div
@@ -900,7 +900,7 @@ export default function Page() {
                           {proposal.name}
                         </p>
                       )}
-                      <p className="text-xs text-gray-500">드래그하여 표준문서에 추가</p>
+                      <p className="text-xs text-gray-500">{t('document.dragDropFiles')}</p>
                     </div>
                       <button
                         onClick={() => setUploadedProposals(prev => prev.filter((_, i) => i !== index))}
@@ -947,8 +947,8 @@ export default function Page() {
               }}
             >
               <UploadIcon className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-              <p className="text-lg font-medium text-gray-700">{t('main.uploadContributionsGuide')}</p>
-              <p className="text-sm text-gray-500 mt-2"> {t('main.uploadContributionsGuide2')}</p>
+              <p className="text-lg font-medium text-gray-700">{t('document.dragDropFiles')}</p>
+              <p className="text-sm text-gray-500 mt-2">PDF, DOC, DOCX, TXT 파일을 지원합니다</p>
             </div>
           </div>
 

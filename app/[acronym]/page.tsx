@@ -26,6 +26,7 @@ import SettingsDialog from "@/components/auth/SettingsDialog"
 import { useMeetingHandlers } from "@/hooks/useMeetingHandlers"
 import { saveStandardData } from "@/lib/standardData"
 import { useAuth } from "@/hooks/useAuth"
+import { useLanguage } from "@/contexts/LanguageContext"
 import MemoSection from "@/components/MemoSection"
 
 import { Document, Meeting } from "@/types/standard"
@@ -58,6 +59,7 @@ function AcronymPage() {
   const params = useParams()
   const acronym = params.acronym as string
   const { auth, loading, login, logout } = useAuth()
+  const { t } = useLanguage()
   
   // 다이얼로그 상태 관리
   const [settingsOpen, setSettingsOpen] = useState(false)
@@ -723,7 +725,7 @@ const { handleEditMeeting, handleSaveMeeting, handleFileUpload } = useMeetingHan
             <Link href="/" className="block flex-shrink-0">
               <Button variant="outline" size="sm" className="lg:w-full flex items-center gap-2">
                 <Home className="h-4 w-4" />
-                <span className="hidden lg:inline">홈으로</span>
+                <span className="hidden lg:inline">{t('common.home')}</span>
               </Button>
             </Link>
             <div className="flex gap-2 flex-shrink-0">
@@ -736,7 +738,7 @@ const { handleEditMeeting, handleSaveMeeting, handleFileUpload } = useMeetingHan
                     className="lg:flex-1 flex items-center gap-2"
                   >
                     <Settings className="h-4 w-4" />
-                    <span className="hidden lg:inline">설정</span>
+                    <span className="hidden lg:inline">{t('common.settings')}</span>
                   </Button>
                 )}
                 <Button
@@ -746,7 +748,7 @@ const { handleEditMeeting, handleSaveMeeting, handleFileUpload } = useMeetingHan
                   className="lg:flex-1 flex items-center gap-2"
                 >
                   <LogOut className="h-4 w-4" />
-                  <span className="hidden lg:inline">로그아웃</span>
+                  <span className="hidden lg:inline">{t('common.logout')}</span>
                 </Button>
               </div>
             </div>
@@ -848,7 +850,7 @@ const { handleEditMeeting, handleSaveMeeting, handleFileUpload } = useMeetingHan
           <div className="flex items-center justify-center h-96">
             <div className="text-center">
               <h2 className="text-xl font-semibold text-gray-400 mb-2 font-mono">// NO_MEETINGS_FOUND</h2>
-              <p className="text-gray-500 font-mono">새 회의를 추가하여 시작하세요.</p>
+              <p className="text-gray-500 font-mono">{t('standard.newMeeting')}를 추가하여 시작하세요.</p>
             </div>
           </div>
         ) : (

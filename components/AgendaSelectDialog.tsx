@@ -5,6 +5,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
 import { Calendar, FileText } from "lucide-react"
+import { useLanguage } from "@/contexts/LanguageContext"
 
 interface Meeting {
   id: string
@@ -72,6 +73,7 @@ const getAllMeetings = async (): Promise<Meeting[]> => {
 }
 
 export default function AgendaSelectDialog({ isOpen, onOpenChange, onGenerateAgenda }: AgendaSelectDialogProps) {
+  const { t } = useLanguage()
   const [selectedTitle, setSelectedTitle] = useState<string>("")
   const [meetings, setMeetings] = useState<Meeting[]>([])
   const [loading, setLoading] = useState(false)
@@ -114,7 +116,7 @@ export default function AgendaSelectDialog({ isOpen, onOpenChange, onGenerateAge
         <div className="space-y-4">
           {loading ? (
             <div className="text-center py-8 text-gray-500">
-              회의명을 불러오는 중...
+              {t('common.loading')}
             </div>
           ) : meetings.length === 0 ? (
             <div className="text-center py-8 text-gray-500">
@@ -122,7 +124,7 @@ export default function AgendaSelectDialog({ isOpen, onOpenChange, onGenerateAge
             </div>
           ) : (
             <div className="space-y-2">
-              <Label>회의명 선택</Label>
+              <Label>{t('standard.meeting')} 선택</Label>
               <div className="space-y-2 max-h-60 overflow-y-auto border rounded p-2">
                 {meetings.map((meeting) => (
                   <div 
@@ -153,14 +155,14 @@ export default function AgendaSelectDialog({ isOpen, onOpenChange, onGenerateAge
           
           <div className="flex gap-2">
             <Button variant="outline" onClick={() => onOpenChange(false)} className="flex-1">
-              취소
+              {t('common.cancel')}
             </Button>
             <Button 
               onClick={handleGenerate} 
               className="flex-1" 
               disabled={!selectedTitle}
             >
-              Agenda 생성
+              Agenda {t('common.add')}
             </Button>
           </div>
         </div>
